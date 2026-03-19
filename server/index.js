@@ -7,7 +7,10 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: process.env.CLIENT_URL || '*',
+  methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+}));
 app.use(express.json());
 
 // Database Connection
@@ -28,7 +31,7 @@ mongoose.connect(process.env.MONGODB_URI)
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: process.env.CLIENT_URL || '*',
     methods: ['GET', 'POST'],
   },
 });

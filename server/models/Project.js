@@ -5,6 +5,7 @@ const projectSchema = new mongoose.Schema({
   owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   folder: { type: String, default: 'My Projects' }, // New field for organization
   collaborators: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  docState: { type: Buffer },
   createdAt: { type: Date, default: Date.now },
 });
 

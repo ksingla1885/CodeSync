@@ -9,7 +9,7 @@ const OutputPanel = ({ output, isLoading, onClose }) => {
   return (
     <div
       className="border-t border-white/5 bg-[#0b0b0b] flex flex-col flex-shrink-0"
-      style={{ height: '220px' }}
+      style={{ height: '320px' }}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-white/5 flex-shrink-0">
@@ -29,19 +29,19 @@ const OutputPanel = ({ output, isLoading, onClose }) => {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar font-mono text-sm leading-relaxed">
+      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar font-mono text-sm leading-relaxed text-white">
         {isLoading ? (
           <div className="flex items-center gap-2 text-white/30">
             <Loader2 size={13} className="animate-spin" />
             <span>Executing code…</span>
           </div>
-        ) : output ? (
+        ) : (output !== undefined && output !== null && output !== '') ? (
           <pre
             className={`whitespace-pre-wrap ${
               isError(output) ? 'text-red-400' : 'text-emerald-400'
             }`}
           >
-            {output}
+            {typeof output === 'string' ? output : JSON.stringify(output, null, 2)}
           </pre>
         ) : (
           <p className="text-white/20 italic text-xs">

@@ -1,9 +1,13 @@
 'use client';
 import React from 'react';
-import { File, Plus, Trash2, Code2, FileCode, Hash } from 'lucide-react';
+import { File, Plus, Trash2, Code2, FileCode, Hash, FolderPlus, Folder } from 'lucide-react';
 
-const FileExplorer = ({ files, selectedFile, onFileSelect, onAddFile, onDeleteFile }) => {
-  const getFileIcon = (name, active) => {
+const FileExplorer = ({ files, selectedFile, onFileSelect, onAddFile, onAddFolder, onDeleteFile }) => {
+  const getFileIcon = (file, active) => {
+    if (file.isFolder) {
+      return <Folder size={13} className={active ? 'text-white' : 'text-white/40 group-hover:text-white/70'} fill="currentColor" fillOpacity={0.2} />;
+    }
+    const name = file.name;
     const ext = name.split('.').pop().toLowerCase();
     const iconClass = active ? 'text-white' : 'text-white/40 group-hover:text-white/70';
     
@@ -19,8 +23,11 @@ const FileExplorer = ({ files, selectedFile, onFileSelect, onAddFile, onDeleteFi
     return <File size={13} className={iconClass} />;
   };
 
-  const getIconBg = (name, active) => {
+  const getIconBg = (file, active) => {
     if (active) return 'bg-[#8a2be2]';
+    if (file.isFolder) return 'bg-white/5 group-hover:bg-white/10';
+    
+    const name = file.name;
     const ext = name.split('.').pop().toLowerCase();
     if (ext === 'js') return 'bg-yellow-500/10 group-hover:bg-yellow-500/20';
     if (ext === 'html') return 'bg-orange-500/10 group-hover:bg-orange-500/20';
@@ -42,6 +49,13 @@ const FileExplorer = ({ files, selectedFile, onFileSelect, onAddFile, onDeleteFi
           >
             <Plus size={13} />
           </button>
+          <button 
+            onClick={onAddFolder}
+            className="p-1 hover:bg-white/10 rounded-md transition-colors text-white/40 hover:text-white"
+            title="New Folder"
+          >
+            <FolderPlus size={13} />
+          </button>
         </div>
       </div>
 
@@ -51,7 +65,7 @@ const FileExplorer = ({ files, selectedFile, onFileSelect, onAddFile, onDeleteFi
           return (
             <div
               key={file.id}
-              onClick={() => onFileSelect(file)}
+              onClick={() => !file.isFolder && onFileSelect(file)}
               className={`flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-all duration-150 group relative ${
                 active
                   ? 'bg-[#8a2be2]/15 text-white'
@@ -59,21 +73,21 @@ const FileExplorer = ({ files, selectedFile, onFileSelect, onAddFile, onDeleteFi
               }`}
             >
               <div
-                className={`p-1 rounded-md flex-shrink-0 transition-colors ${getIconBg(file.name, active)}`}
+                className={`p-1 rounded-md flex-shrink-0 transition-colors ${getIconBg(file, active)}`}
               >
-                {getFileIcon(file.name, active)}
+                {getFileIcon(file, active)}
               </div>
-              <span className="text-sm font-medium truncate flex-1">{file.name}</span>
+              <span className={`text-sm font-medium truncate flex-1 ${file.isFolder ? 'text-white/60' : ''}`}>{file.name}</span>
               
               {/* Delete button (hidden by default, shown on hover, unless only 1 file exists) */}
-              {files.length > 1 && (
+              {(files.length > 1 || file.isFolder) && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     onDeleteFile(file.id);
                   }}
                   className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/20 hover:text-red-400 rounded-md transition-all"
-                  title="Delete File"
+                  title={file.isFolder ? "Delete Folder" : "Delete File"}
                 >
                   <Trash2 size={12} />
                 </button>
@@ -87,3 +101,4 @@ const FileExplorer = ({ files, selectedFile, onFileSelect, onAddFile, onDeleteFi
 };
 
 export default FileExplorer;
+

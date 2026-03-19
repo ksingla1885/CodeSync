@@ -16,32 +16,46 @@ const executeCode = async (req, res) => {
     fs.mkdirSync(folderPath, { recursive: true });
   }
 
-  const fileName = language === 'javascript' ? `script_${id}.js` : `script_${id}`;
+  // Normalize language string
+  const normalizedLang = (language || '').toLowerCase().trim();
+  const isJS = normalizedLang === 'javascript' || normalizedLang === 'js';
+  
+  const fileName = isJS ? `script_${id}.js` : `script_${id}`;
   const filePath = path.join(folderPath, fileName);
+
+  console.log(`🚀 Executing ${normalizedLang} code (UUID: ${id})...`);
+  console.log(`📄 File path: ${filePath}`);
 
   try {
     fs.writeFileSync(filePath, code);
 
-    // Fallback if Docker is not available: Use child_process for direct Node execution
-    // for this demo.
-    // In production, use: `docker run --rm -v ${filePath}:/app/script.js node-sandbox`
-    const command = language === 'javascript' ? `node ${filePath}` : `echo 'Only javascript is supported for now'`;
+    // Use quotes for filePath to handle spaces in directory paths
+    const command = isJS ? `node "${filePath}"` : `echo "Unsupported language: ${normalizedLang}"`;
 
     exec(command, { timeout: 5000 }, (error, stdout, stderr) => {
       // Clean up the temp file
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+      try {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      } catch (unlinkErr) {
+        console.error(`Status: Failed to delete temp file ${filePath}`, unlinkErr);
       }
 
       if (error && error.killed) {
+        console.warn(`⚠️ Execution timed out for script ${id}`);
         return res.json({ output: 'Execution timed out (5s limit)', error: true });
       }
 
       const output = stdout || stderr || 'Execution finished with no output';
-      res.json({ output, error: !!stderr });
+      const hasError = !!stderr || !!error;
+      
+      console.log(`✅ Execution finished for script ${id}. Output length: ${output.length}, Error: ${hasError}`);
+      
+      res.json({ output, error: hasError });
     });
   } catch (err) {
-    console.error('Execution error:', err);
+    console.error(`💥 Execution error for script ${id}:`, err);
     res.status(500).json({ error: 'Failed to execute code' });
   }
 };

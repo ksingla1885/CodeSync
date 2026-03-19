@@ -42,10 +42,12 @@ export default function EditorPage() {
 
   // Modal States
   const [isNewFileModalOpen, setIsNewFileModalOpen] = useState(false);
+  const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isCollaboratorModalOpen, setIsCollaboratorModalOpen] = useState(false);
   
   const [newFileName, setNewFileName] = useState('');
+  const [newFolderName, setNewFolderName] = useState('');
   const [fileToDelete, setFileToDelete] = useState(null);
   const [collabEmail, setCollabEmail] = useState('');
   const [collabStatus, setCollabStatus] = useState({ type: '', message: '' });
@@ -129,6 +131,22 @@ export default function EditorPage() {
     setSelectedFileId(file.id);
   };
 
+  const handleCreateFolder = (e) => {
+    e.preventDefault();
+    if (!newFolderName.trim()) return;
+
+    const folder = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: newFolderName,
+      isFolder: true,
+      content: ''
+    };
+
+    addFile(folder);
+    setIsNewFolderModalOpen(false);
+    setNewFolderName('');
+  };
+
   const handleConfirmDelete = () => {
     if (fileToDelete) {
       deleteFile(fileToDelete.id);
@@ -200,6 +218,7 @@ export default function EditorPage() {
           selectedFile={selectedFile}
           onFileSelect={(f) => setSelectedFileId(f.id)}
           onAddFile={() => setIsNewFileModalOpen(true)}
+          onAddFolder={() => setIsNewFolderModalOpen(true)}
           onDeleteFile={(id) => { setFileToDelete(files.find(f => f.id === id)); setIsDeleteModalOpen(true); }}
         />
 
@@ -220,7 +239,7 @@ export default function EditorPage() {
             ))}
           </div>
 
-          <div className="flex-1">
+          <div className="flex-1 min-h-0 relative">
             <CodeEditor
               code={code}
               ytext={ytext}
@@ -310,6 +329,43 @@ export default function EditorPage() {
             <button 
               type="button"
               onClick={() => setIsNewFileModalOpen(false)}
+              className="flex-1 px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-sm font-bold transition-all"
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit"
+              className="flex-1 px-4 py-3 rounded-xl bg-[#8a2be2] hover:bg-[#7a1bd2] text-sm font-bold shadow-lg shadow-[#8a2be2]/20 transition-all"
+            >
+              Create
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* New Folder Modal */}
+      <Modal
+        isOpen={isNewFolderModalOpen}
+        onClose={() => setIsNewFolderModalOpen(false)}
+        title="Create New Folder"
+      >
+        <form onSubmit={handleCreateFolder} className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-white/30 ml-1">Folder Name</label>
+            <input 
+              autoFocus
+              required
+              type="text" 
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              placeholder="e.g. components"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#8a2be2]/50 transition-all font-mono text-sm"
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button 
+              type="button"
+              onClick={() => setIsNewFolderModalOpen(false)}
               className="flex-1 px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-sm font-bold transition-all"
             >
               Cancel

@@ -36,7 +36,9 @@ const useCollaboration = (projectId, selectedFileId, initialFiles = []) => {
   // Sync React 'files' list with Yjs file metadata
   const refreshFiles = useCallback((yArray) => {
     const remoteFiles = yArray.toArray();
-    setFiles(remoteFiles);
+    // Filter out duplicates by ID to prevent key collision in UI
+    const uniqueFiles = Array.from(new Map(remoteFiles.map(f => [f.id, f])).values());
+    setFiles(uniqueFiles);
   }, []);
 
   useEffect(() => {

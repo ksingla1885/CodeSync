@@ -34,6 +34,20 @@ exports.getProjects = async (req, res) => {
   }
 };
 
+// Get single project details
+exports.getProjectById = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const project = await Project.findById(projectId)
+      .populate('owner collaborators', 'name email');
+    
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    res.json(project);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // Create a new project
 exports.createProject = async (req, res) => {
   try {
@@ -53,14 +67,27 @@ exports.createProject = async (req, res) => {
   }
 };
 
-// Add a collaborator to a project
+// Add a collaborator to a project with verification code
 exports.addCollaborator = async (req, res) => {
   try {
     const { projectId } = req.params;
-    const { email } = req.body;
+    const { email, code } = req.body;
+
+    if (!email || !code) {
+      return res.status(400).json({ error: 'Email and verification code are required' });
+    }
 
     const userToAdd = await User.findOne({ email });
-    if (!userToAdd) return res.status(404).json({ error: 'User not found' });
+    if (!userToAdd) return res.status(404).json({ error: 'User not found. Please send a code first.' });
+
+    // Verify the code
+    if (userToAdd.verificationCode !== code) {
+      return res.status(400).json({ error: 'Invalid verification code' });
+    }
+
+    if (new Date() > userToAdd.verificationCodeExpires) {
+      return res.status(400).json({ error: 'Verification code expired' });
+    }
 
     const project = await Project.findById(projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
@@ -69,10 +96,38 @@ exports.addCollaborator = async (req, res) => {
       return res.status(400).json({ error: 'User is already a collaborator' });
     }
 
+    // Success! Clear code and add user
+    userToAdd.verificationCode = undefined;
+    userToAdd.verificationCodeExpires = undefined;
+    await userToAdd.save();
+
     project.collaborators.push(userToAdd._id);
     await project.save();
 
-    res.json({ message: 'Collaborator added successfully', project });
+    res.json({ message: 'Collaborator added successfully!', project });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Remove a collaborator from a project
+exports.removeCollaborator = async (req, res) => {
+  try {
+    const { projectId, collaboratorId } = req.params;
+    const { userId } = req.query; // Requester ID
+
+    const project = await Project.findById(projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    // ONLY OWNER can remove collaborators
+    if (project.owner.toString() !== userId) {
+      return res.status(403).json({ error: 'Only the project owner can remove collaborators' });
+    }
+
+    project.collaborators = project.collaborators.filter(c => c.toString() !== collaboratorId);
+    await project.save();
+
+    res.json({ message: 'Collaborator removed successfully', project });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

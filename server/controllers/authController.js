@@ -58,7 +58,7 @@ exports.verifyCode = async (req, res) => {
     res.json({ 
       message: 'Login successful', 
       user: {
-        id: user._id,
+        _id: user._id,
         email: user.email,
         name: user.name
       }

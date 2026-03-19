@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
   Folder, 
@@ -21,11 +22,7 @@ import ConfirmationModal from '@/components/ConfirmationModal';
 const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000';
 
 export default function Dashboard() {
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState('grid');
-  const [serverStatus, setServerStatus] = useState('unknown'); // 'online', 'offline', 'unknown'
+
   
   // Auth User
   const [user, setUser] = useState(null);
@@ -40,47 +37,44 @@ export default function Dashboard() {
     }
   }, []);
 
-  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
-  const [projectToMove, setProjectToMove] = useState(null);
-  const [targetFolder, setTargetFolder] = useState('');
-
-  const handleMoveProject = async () => {
-    if (!projectToMove || !targetFolder) return;
-    
-    try {
-      const res = await fetch(`${SERVER_URL}/api/projects/${projectToMove._id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folder: targetFolder }),
-      });
-
-      if (res.ok) {
-        setIsMoveModalOpen(false);
-        setProjectToMove(null);
-        setTargetFolder('');
-        fetchProjects();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to move project');
-      }
-    } catch (err) {
-      console.error('Error moving project:', err);
-    }
-  };
-
   const userId = user?.id;
+  const router = useRouter();
 
+  // Modal States
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
   const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
-  const [newProjectData, setNewProjectData] = useState({ name: '', folder: '' });
-  const [tempFolderName, setTempFolderName] = useState('');
-  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [isAddCollabModalOpen, setIsAddCollabModalOpen] = useState(false);
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [confirmationModal, setConfirmationModal] = useState({
     isOpen: false,
     title: '',
     message: '',
     onConfirm: () => {},
   });
+
+  // Data States
+  const [projects, setProjects] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [serverStatus, setServerStatus] = useState('checking');
+  const [viewMode, setViewMode] = useState('grid');
+
+  // Input States
+  const [newProjectData, setNewProjectData] = useState({ name: '', folder: '' });
+  const [tempFolderName, setTempFolderName] = useState('');
+  const [selectedProjectId, setSelectedProjectId] = useState('');
+  
+  // Collaborator States
+  const [selectedProjectForCollab, setSelectedProjectForCollab] = useState(null);
+  const [collabEmail, setCollabEmail] = useState('');
+  const [collabCode, setCollabCode] = useState('');
+  const [collabStatus, setCollabStatus] = useState({ type: '', message: '' });
+  const [collabLoading, setCollabLoading] = useState(false);
+  const [collabStep, setCollabStep] = useState(1); // 1: Email, 2: Code
+
+  // Move States
+  const [projectToMove, setProjectToMove] = useState(null);
+  const [targetFolder, setTargetFolder] = useState('');
 
   useEffect(() => {
     if (userId) {
@@ -101,19 +95,17 @@ export default function Dashboard() {
 
   const fetchProjects = async () => {
     try {
+      setLoading(true);
       const res = await fetch(`${SERVER_URL}/api/projects?userId=${userId}`);
       const data = await res.json();
       
       if (res.ok && Array.isArray(data)) {
         setProjects(data);
       } else {
-        const errorMessage = data.error || 'Server returned invalid data format';
-        console.error('Fetch Projects Failed:', errorMessage);
+        console.error('Fetch Projects Failed:', data.error || 'Invalid format');
         setProjects([]);
-        // Optional: Signal to UI that there's a backend issue
       }
     } catch (err) {
-      console.error('Network or Parsing Error:', err);
       console.error('Error fetching projects:', err);
       setProjects([]);
     } finally {
@@ -140,57 +132,117 @@ export default function Dashboard() {
   };
 
   const handleDeleteProject = async (projectId) => {
-    console.log('🚮 handleDeleteProject initiated for project:', projectId);
     setConfirmationModal({
       isOpen: true,
       title: 'Delete Project',
       message: 'Are you sure you want to delete this project? This action cannot be undone.',
       onConfirm: async () => {
-        console.log('✅ Deletion confirmed for project:', projectId);
         try {
           const res = await fetch(`${SERVER_URL}/api/projects/${projectId}`, {
             method: 'DELETE',
           });
-          console.log('📡 DELETE request status:', res.status, res.ok);
           if (res.ok) {
-            console.log('✨ Project deleted successfully, refreshing list...');
-            await fetchProjects();
-          } else {
-            const errData = await res.json();
-            console.error('❌ Delete failed:', errData);
+            fetchProjects();
           }
         } catch (err) {
-          console.error('💥 Network or Request Error during delete:', err);
+          console.error('Error deleting project:', err);
         }
       }
     });
   };
 
   const handleClearAll = async () => {
-    console.log('🚮 handleClearAll initiated');
     setConfirmationModal({
       isOpen: true,
       title: 'Clear Workspace',
       message: 'Are you sure you want to delete ALL projects and folders? This will permanently remove all your work.',
       onConfirm: async () => {
-        console.log('✅ Workspace clear confirmed');
         try {
           const res = await fetch(`${SERVER_URL}/api/projects/clear?userId=${userId}`, {
             method: 'DELETE',
           });
-          console.log('📡 CLEAR DELETE request status:', res.status, res.ok);
           if (res.ok) {
-            console.log('✨ Workspace cleared successfully, refreshing list...');
-            await fetchProjects();
-          } else {
-            const errData = await res.json();
-            console.error('❌ Clear failed:', errData);
+            fetchProjects();
           }
         } catch (err) {
-          console.error('💥 Network or Request Error during clear:', err);
+          console.error('Error clearing workspace:', err);
         }
       }
     });
+  };
+
+  const handleMoveProject = async () => {
+    if (!projectToMove || !targetFolder) return;
+    try {
+      const res = await fetch(`${SERVER_URL}/api/projects/${projectToMove._id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder: targetFolder }),
+      });
+      if (res.ok) {
+        setIsMoveModalOpen(false);
+        setProjectToMove(null);
+        setTargetFolder('');
+        fetchProjects();
+      }
+    } catch (err) {
+      console.error('Error moving project:', err);
+    }
+  };
+
+  const handleRequestCollabCode = async () => {
+    if (!collabEmail) return;
+    setCollabLoading(true);
+    setCollabStatus({ type: 'loading', message: 'Sending verification code...' });
+    try {
+      const res = await fetch(`${SERVER_URL}/api/auth/request-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: collabEmail }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCollabStatus({ type: 'success', message: 'Verification code sent!' });
+        setCollabStep(2);
+      } else {
+        setCollabStatus({ type: 'error', message: data.error || 'Failed to send code' });
+      }
+    } catch (err) {
+      setCollabStatus({ type: 'error', message: 'Connection failed' });
+    } finally {
+      setCollabLoading(false);
+    }
+  };
+
+  const handleAddCollaboratorAction = async (e) => {
+    e.preventDefault();
+    if (!selectedProjectForCollab || !collabEmail || !collabCode) return;
+    setCollabLoading(true);
+    setCollabStatus({ type: 'loading', message: 'Verifying and adding...' });
+    try {
+      const res = await fetch(`${SERVER_URL}/api/projects/${selectedProjectForCollab._id}/collaborators`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: collabEmail, code: collabCode }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCollabStatus({ type: 'success', message: 'Collaborator added!' });
+        setTimeout(() => {
+          setIsAddCollabModalOpen(false);
+          setCollabEmail('');
+          setCollabCode('');
+          setCollabStatus({ type: '', message: '' });
+          fetchProjects();
+        }, 1500);
+      } else {
+        setCollabStatus({ type: 'error', message: data.error || 'Failed to add' });
+      }
+    } catch (err) {
+      setCollabStatus({ type: 'error', message: 'Connection failed' });
+    } finally {
+      setCollabLoading(false);
+    }
   };
 
   const groupedProjects = (Array.isArray(projects) ? projects : []).reduce((acc, project) => {
@@ -333,6 +385,10 @@ export default function Dashboard() {
                       onMove={(proj) => {
                         setProjectToMove(proj);
                         setIsMoveModalOpen(true);
+                      }}
+                      onAddCollab={(proj) => {
+                        setSelectedProjectForCollab(proj);
+                        setIsAddCollabModalOpen(true);
                       }}
                     />
                   ))}
@@ -552,6 +608,106 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Add Collaborator Modal */}
+      {isAddCollabModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => { setIsAddCollabModalOpen(false); setCollabStep(1); setCollabStatus({ type: '', message: '' }); }} />
+          <div className="relative bg-[#0d0d0d] border border-white/10 rounded-[2.5rem] w-full max-w-md p-10 shadow-3xl overflow-hidden animate-modal-in transform transition-all group">
+             {/* Dynamic Accent Bar */}
+             <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-[#8a2be2] to-[#c084fc] shadow-[0_0_20px_rgba(138,43,226,0.3)]" />
+             
+             {/* Header */}
+             <div className="text-center space-y-3 mb-10">
+                <div className="w-20 h-20 rounded-[2rem] bg-gradient-to-br from-[#8a2be2]/20 to-transparent flex items-center justify-center text-[#8a2be2] mx-auto border border-white/5 shadow-2xl group-hover:scale-110 transition-transform duration-500">
+                   {collabStep === 1 ? <Users size={32} /> : <Clock size={32} className="animate-pulse" />}
+                </div>
+                <h3 className="text-3xl font-black italic tracking-tighter uppercase leading-none">
+                   {collabStep === 1 ? 'Expand Team' : 'Secure Entry'}
+                </h3>
+                <p className="text-white/20 text-[10px] font-black uppercase tracking-[0.4em] block">
+                   {selectedProjectForCollab?.name}
+                </p>
+             </div>
+
+             <div className="space-y-8">
+                {collabStep === 1 ? (
+                  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em] ml-1 block">Collaborator Identity</label>
+                      <div className="relative group/input">
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-white/10 group-focus-within/input:text-[#8a2be2] transition-colors" size={20} />
+                        <input 
+                          autoFocus
+                          type="email" 
+                          placeholder="ENTER EMAIL ADDRESS"
+                          value={collabEmail}
+                          onChange={(e) => setCollabEmail(e.target.value)}
+                          className="w-full bg-white/[0.03] border border-white/5 rounded-2xl pl-12 pr-6 py-5 text-sm focus:outline-none focus:border-[#8a2be2]/50 transition-all font-black tracking-wide placeholder-white/5"
+                        />
+                      </div>
+                    </div>
+                    <button 
+                      onClick={handleRequestCollabCode}
+                      disabled={collabLoading || !collabEmail}
+                      className="group/btn relative w-full py-5 rounded-2xl bg-[#8a2be2] text-white font-black text-[11px] uppercase tracking-[0.3em] hover:bg-[#9d4edd] transition-all shadow-2xl shadow-[#8a2be2]/20 disabled:opacity-30 active:scale-[0.97] cursor-pointer overflow-hidden"
+                    >
+                      <span className="relative z-10">{collabLoading ? 'REQUESTING CODE...' : 'CONTINUE'}</span>
+                      <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-8 animate-in fade-in zoom-in-95 duration-700">
+                    <div className="p-4 bg-white/[0.02] border border-dashed border-white/10 rounded-2xl text-center">
+                       <p className="text-[10px] text-white/40 font-black uppercase tracking-widest mb-1">Code sent to</p>
+                       <p className="text-sm font-black italic text-[#c084fc]">{collabEmail}</p>
+                    </div>
+
+                    <div className="space-y-4">
+                      <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em] text-center block">Access Key</label>
+                      <input 
+                        required
+                        type="text" 
+                        maxLength={6}
+                        value={collabCode}
+                        onChange={(e) => setCollabCode(e.target.value)}
+                        placeholder="••••••"
+                        className="w-full bg-transparent border-b-4 border-white/10 rounded-none px-4 py-4 text-center text-5xl font-black tracking-[0.8em] focus:outline-none focus:border-[#8a2be2] transition-all text-[#8a2be2] placeholder-white/5"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-4">
+                      <button 
+                        onClick={handleAddCollaboratorAction}
+                        disabled={collabLoading || collabCode.length !== 6}
+                        className="group/btn relative w-full py-5 rounded-2xl bg-[#8a2be2] text-white font-black text-[11px] uppercase tracking-[0.3em] hover:bg-[#9d4edd] transition-all shadow-2xl shadow-[#8a2be2]/20 disabled:opacity-30 active:scale-[0.97] cursor-pointer overflow-hidden"
+                      >
+                        <span className="relative z-10">{collabLoading ? 'AUTHORIZING...' : 'VERIFY & ADD'}</span>
+                        <div className="absolute inset-0 bg-black/10 translate-y-[100%] group-hover/btn:translate-y-0 transition-transform duration-500" />
+                      </button>
+                      <button 
+                        onClick={() => { setCollabStep(1); setCollabCode(''); }}
+                        className="text-[9px] font-black text-white/20 uppercase tracking-[0.4em] hover:text-white transition-colors cursor-pointer text-center"
+                      >
+                        ← Edit Credentials
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {collabStatus.message && (
+                  <div className={`p-4 rounded-2xl text-[10px] font-black text-center uppercase tracking-[0.2em] animate-in slide-in-from-top-4 duration-500 border ${
+                    collabStatus.type === 'success' ? 'bg-green-500/10 text-green-400 border-green-500/20' : 
+                    collabStatus.type === 'error' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 
+                    'bg-white/5 text-white/30 border-white/5'
+                  }`}>
+                    {collabStatus.message}
+                  </div>
+                )}
+             </div>
+          </div>
+        </div>
+      )}
+
       {/* Confirmation Modal */}
       <ConfirmationModal 
         isOpen={confirmationModal.isOpen}
@@ -564,13 +720,21 @@ export default function Dashboard() {
   );
 }
 
-function ProjectCard({ project, viewMode, onDelete, onMove }) {
+function ProjectCard({ project, viewMode, onDelete, onMove, onAddCollab }) {
+  const router = useRouter();
   const isUncategorized = project.folder === 'My Projects';
+
+  const handleCardClick = () => {
+    router.push(`/editor/${project._id}`);
+  };
 
   if (viewMode === 'list') {
     return (
-      <div className="flex items-center justify-between p-4 bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 rounded-2xl transition-all group">
-        <Link href={`/editor/${project._id}`} className="flex items-center gap-4 flex-1">
+      <div 
+        onClick={handleCardClick}
+        className="flex items-center justify-between p-4 bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 rounded-2xl transition-all group cursor-pointer"
+      >
+        <div className="flex items-center gap-4 flex-1">
            <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/40 group-hover:text-[#8a2be2] transition-colors">
               <Users size={18} />
            </div>
@@ -581,7 +745,7 @@ function ProjectCard({ project, viewMode, onDelete, onMove }) {
                  Last edited {new Date(project.updatedAt || project.createdAt).toLocaleDateString()}
               </p>
            </div>
-        </Link>
+        </div>
         <div className="flex items-center gap-4">
            {isUncategorized && (
              <button 
@@ -615,8 +779,10 @@ function ProjectCard({ project, viewMode, onDelete, onMove }) {
   }
 
   return (
-    <div className="bg-[#141414] border border-white/5 rounded-3xl p-6 hover:border-[#8a2be2]/30 hover:bg-[#1a1a1a] transition-all group active:scale-[0.98] relative overflow-hidden cursor-pointer">
-      <Link href={`/editor/${project._id}`} className="absolute inset-0 z-0" />
+    <div 
+      onClick={handleCardClick}
+      className="bg-[#141414] border border-white/5 rounded-3xl p-6 hover:border-[#8a2be2]/30 hover:bg-[#1a1a1a] transition-all group active:scale-[0.98] relative overflow-hidden cursor-pointer"
+    >
       {/* Glow Effect */}
       <div className="absolute top-0 right-0 w-24 h-24 bg-[#8a2be2]/5 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
       
@@ -628,7 +794,7 @@ function ProjectCard({ project, viewMode, onDelete, onMove }) {
            {isUncategorized && (
              <button 
                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onMove(project); }}
-               className="p-2 bg-white/5 border border-white/10 rounded-xl text-white/20 hover:text-[#c084fc] hover:border-[#8a2be2]/30 transition-all cursor-pointer shadow-xl"
+               className="p-2 bg-white/5 border border-white/10 rounded-xl text-white/20 hover:text-[#c084fc] hover:border-[#8a2be2]/30 transition-all cursor-pointer shadow-xl relative z-20"
                title="Move to Folder"
              >
                 <FolderPlus size={18} />
@@ -636,7 +802,7 @@ function ProjectCard({ project, viewMode, onDelete, onMove }) {
            )}
            <button 
              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(); }}
-             className="p-2 text-white/10 hover:text-red-400 transition-colors cursor-pointer"
+             className="p-2 text-white/10 hover:text-red-400 transition-colors cursor-pointer relative z-20"
            >
              <Trash2 size={18} />
            </button>
@@ -662,7 +828,10 @@ function ProjectCard({ project, viewMode, onDelete, onMove }) {
                {c.name ? c.name[0] : '?'}
              </div>
            ))}
-           <div className="w-8 h-8 rounded-full border-2 border-[#141414] bg-white/5 border-dashed flex items-center justify-center text-white/20 hover:text-white hover:border-[#8a2be2] transition-all cursor-pointer">
+           <div 
+             onClick={(e) => { e.stopPropagation(); onAddCollab(project); }}
+             className="w-8 h-8 rounded-full border-2 border-[#141414] bg-white/5 border-dashed flex items-center justify-center text-white/20 hover:text-white hover:border-[#8a2be2] transition-all cursor-pointer"
+           >
               <Plus size={12} />
            </div>
         </div>

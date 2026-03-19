@@ -24,7 +24,7 @@ exports.requestCode = async (req, res) => {
     // Send the email via Service
     await emailService.sendVerificationEmail(email, code);
     
-    // Verification email sent
+    console.log(`[AUTH] Verification email sent to ${email}`);
     res.json({ message: 'Verification code sent to your email' });
   } catch (error) {
     console.error('Email Send Error:', error);

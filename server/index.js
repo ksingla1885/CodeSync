@@ -13,12 +13,12 @@ app.use(express.json());
 // Database Connection
 mongoose.connect(process.env.MONGODB_URI)
   .then(async () => {
-    // Connected to MongoDB
+    console.log('Connected to MongoDB');
     // Auto-seed if empty
     const User = require('./models/User');
     const count = await User.countDocuments();
     if (count === 0) {
-      // Seeding...
+      console.log('Database empty, seeding...');
       const seed = require('./seed');
       await seed();
     }
@@ -53,12 +53,12 @@ app.post('/api/execute', executeCode);
 
 // Socket.IO for real-time features
 io.on('connection', (socket) => {
-  // User connected
+  console.log(`User connected: ${socket.id}`);
 
   // Join a specific project room
   socket.on('join-project', (projectId) => {
     socket.join(projectId);
-    // Joined project
+    console.log(`User ${socket.id} joined project: ${projectId}`);
   });
 
   // Handle chat messages
@@ -72,11 +72,11 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    // User disconnected
+    console.log(`User disconnected: ${socket.id}`);
   });
 });
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  // Server started
+  console.log(`Server listening on port ${PORT}`);
 });

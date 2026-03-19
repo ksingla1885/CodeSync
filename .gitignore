@@ -1,34 +1,5 @@
-# Dependency directories
 node_modules/
-client/node_modules/
-server/node_modules/
-
-# Next.js build output
-client/.next/
-client/out/
-
-# Environment variables
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-server/.env
-client/.env.local
-
-# Debug logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# OS metadata
+dist/
+build/
 .DS_Store
-Thumbs.db
-
-# IDES
-.vscode/
-.idea/
-
-# Production builds
-server/dist/
-client/build/

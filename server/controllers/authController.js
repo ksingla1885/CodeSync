@@ -17,6 +17,7 @@ exports.requestCode = async (req, res) => {
     }
 
     // Generate 6-digit code
+    const { type = 'login', projectName, ownerName } = req.body;
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expires = new Date(Date.now() + 10 * 60000); // 10 minutes
 
@@ -31,7 +32,7 @@ exports.requestCode = async (req, res) => {
     await user.save();
 
     // Send the email via Service
-    await emailService.sendVerificationEmail(email, code);
+    await emailService.sendVerificationEmail(email, code, type, { projectName, ownerName });
     
     console.log(`[AUTH] Verification email sent to ${email}`);
     res.json({ message: 'Verification code sent to your email' });

@@ -92,6 +92,10 @@ exports.addCollaborator = async (req, res) => {
     const project = await Project.findById(projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
 
+    if (project.owner.toString() === userToAdd._id.toString()) {
+      return res.status(400).json({ error: "You cannot add the owner as a collaborator!" });
+    }
+
     if (project.collaborators.includes(userToAdd._id)) {
       return res.status(400).json({ error: 'User is already a collaborator' });
     }

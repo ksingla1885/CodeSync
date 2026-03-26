@@ -20,7 +20,9 @@ import {
   Users,
   UserPlus,
   Mail,
-  ArrowLeft
+  ArrowLeft,
+  X,
+  Code2
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -41,6 +43,7 @@ export default function EditorPage() {
   const [copied, setCopied] = useState(false);
   const [currentUser, setCurrentUser] = useState({ name: 'User', email: '', color: '#8a2be2' });
   const [project, setProject] = useState(null);
+  const [openFileIds, setOpenFileIds] = useState(['1']); // Track which files are open as tabs
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
@@ -74,6 +77,7 @@ export default function EditorPage() {
   
   const [newFileName, setNewFileName] = useState('');
   const [newFolderName, setNewFolderName] = useState('');
+  const [activeParentId, setActiveParentId] = useState('root');
   const [fileToDelete, setFileToDelete] = useState(null);
   const [collabEmail, setCollabEmail] = useState('');
   const [collabCode, setCollabCode] = useState('');
@@ -126,13 +130,32 @@ export default function EditorPage() {
 
   const handleRequestCollabCode = async () => {
     if (!collabEmail) return;
+
+    // Check if user is already a collaborator or the owner
+    const isOwner = project?.owner?.email === collabEmail;
+    const isAlreadyCollab = project?.collaborators?.some(c => c.email === collabEmail);
+
+    if (isOwner) {
+      setCollabStatus({ type: 'error', message: "That's you! You're already the owner." });
+      return;
+    }
+    if (isAlreadyCollab) {
+      setCollabStatus({ type: 'error', message: 'This user is already a collaborator on this project.' });
+      return;
+    }
+
     setCollabLoading(true);
     setCollabStatus({ type: 'loading', message: 'Sending verification code...' });
     try {
       const res = await fetch(`${SERVER_URL}/api/auth/request-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: collabEmail }),
+        body: JSON.stringify({ 
+          email: collabEmail, 
+          type: 'collaboration',
+          projectName: project?.name,
+          ownerName: project?.owner?.name
+        }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -218,6 +241,7 @@ export default function EditorPage() {
     const file = {
       id: Math.random().toString(36).substr(2, 9),
       name: newFileName,
+      parentId: activeParentId,
       language: newFileName.endsWith('.js') ? 'javascript' : 
                 newFileName.endsWith('.css') ? 'css' : 
                 newFileName.endsWith('.html') ? 'html' : 'plaintext',
@@ -228,6 +252,7 @@ export default function EditorPage() {
     setIsNewFileModalOpen(false);
     setNewFileName('');
     setSelectedFileId(file.id);
+    setOpenFileIds(prev => [...new Set([...prev, file.id])]);
   };
 
   const handleCreateFolder = (e) => {
@@ -238,6 +263,7 @@ export default function EditorPage() {
       id: Math.random().toString(36).substr(2, 9),
       name: newFolderName,
       isFolder: true,
+      parentId: activeParentId,
       content: ''
     };
 
@@ -251,6 +277,10 @@ export default function EditorPage() {
       deleteFile(fileToDelete.id);
       setIsDeleteModalOpen(false);
       setFileToDelete(null);
+      
+      // Also close the tab
+      setOpenFileIds(prev => prev.filter(id => id !== fileToDelete.id));
+
       if (selectedFileId === fileToDelete.id) {
         setSelectedFileId('1'); // Fallback to main
       }
@@ -272,7 +302,7 @@ export default function EditorPage() {
             <div className="flex items-center gap-1">
               <span className="font-bold text-[15px]">CodeSync</span>
               <span className="text-white/20 mx-1">/</span>
-              <span className="text-white/50 text-sm font-mono truncate max-w-[120px]">{projectId}</span>
+              <span className="text-white/50 text-sm font-bold truncate max-w-[120px]">{project?.name || 'Loading...'}</span>
             </div>
           </div>
         </div>
@@ -315,39 +345,69 @@ export default function EditorPage() {
         <FileExplorer
           files={files}
           selectedFile={selectedFile}
-          onFileSelect={(f) => setSelectedFileId(f.id)}
-          onAddFile={() => setIsNewFileModalOpen(true)}
-          onAddFolder={() => setIsNewFolderModalOpen(true)}
-          onDeleteFile={(id) => { setFileToDelete(files.find(f => f.id === id)); setIsDeleteModalOpen(true); }}
+          onFileSelect={(f) => {
+            setSelectedFileId(f.id);
+            if (!openFileIds.includes(f.id)) {
+              setOpenFileIds(prev => [...prev, f.id]);
+            }
+          }}
+          onAddFile={(parentId) => { setActiveParentId(parentId); setIsNewFileModalOpen(true); }}
+          onAddFolder={(parentId) => { setActiveParentId(parentId); setIsNewFolderModalOpen(true); }}
+          onDeleteFile={(id) => { 
+            setFileToDelete(files.find(f => f.id === id)); 
+            setIsDeleteModalOpen(true); 
+          }}
         />
 
         <main className="flex-1 flex flex-col overflow-hidden relative">
           {/* Tabs */}
-          <div className="h-10 bg-[#141414]/50 border-b border-white/5 flex items-end flex-shrink-0 overflow-x-auto">
-            {files.map((file) => (
-              <button
+          <div className="h-10 bg-[#141414]/50 border-b border-white/5 flex items-end flex-shrink-0 overflow-x-auto no-scrollbar">
+            {files.filter(f => openFileIds.includes(f.id) && !f.isFolder).map((file) => (
+              <div
                 key={file.id}
-                onClick={() => setSelectedFileId(file.id)}
-                className={`h-full px-5 flex items-center gap-2 text-[11px] font-medium border-r border-white/5 transition-all relative ${
-                  file.id === selectedFileId ? 'bg-[#0d0d0d] text-[#c084fc]' : 'text-white/30 hover:text-white/60'
+                className={`h-full flex items-center gap-2 text-[11px] font-medium border-r border-white/5 transition-all relative group cursor-pointer ${
+                  file.id === selectedFileId ? 'bg-[#0d0d0d] text-[#c084fc]' : 'text-white/30 hover:text-white/60 hover:bg-white/[0.02]'
                 }`}
+                onClick={() => setSelectedFileId(file.id)}
               >
                 {file.id === selectedFileId && <span className="absolute top-0 left-0 right-0 h-[2px] bg-[#8a2be2]" />}
-                {file.name}
-              </button>
+                <span className="pl-5 py-2">{file.name}</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const newOpenIds = openFileIds.filter(id => id !== file.id);
+                    setOpenFileIds(newOpenIds);
+                    if (selectedFileId === file.id && newOpenIds.length > 0) {
+                      setSelectedFileId(newOpenIds[newOpenIds.length - 1]);
+                    }
+                  }}
+                  className="p-1 mx-2 rounded-md hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X size={10} className="text-white/40 hover:text-red-400" />
+                </button>
+              </div>
             ))}
           </div>
 
           <div className="flex-1 min-h-0 relative">
-            <CodeEditor
-              code={code}
-              ytext={ytext}
-              connected={connected}
-              language={selectedFile.language}
-              onChange={(c) => updateCode(c)}
-              cursors={cursors}
-              onCursorChange={(p) => updateCursor(p, currentUser)}
-            />
+            {openFileIds.filter(id => !files.find(f => f.id === id)?.isFolder).length > 0 ? (
+              <CodeEditor
+                code={code}
+                ytext={ytext}
+                connected={connected}
+                language={selectedFile.language}
+                onChange={(c) => updateCode(c)}
+                cursors={cursors}
+                onCursorChange={(p) => updateCursor(p, currentUser)}
+              />
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0d0d0d] text-white/5 space-y-4">
+                <div className="w-24 h-24 rounded-full border-4 border-white/5 flex items-center justify-center">
+                   <Code2 size={40} className="text-white/5" />
+                </div>
+                <p className="text-xs font-bold uppercase tracking-widest">Select a file from the explorer to begin coding</p>
+              </div>
+            )}
           </div>
 
           {showOutput && <OutputPanel output={output} isLoading={isRunning} onClose={() => setShowOutput(false)} />}

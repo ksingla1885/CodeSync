@@ -159,11 +159,33 @@ const useCollaboration = (projectId, selectedFileId, initialFiles = []) => {
     const yFileList = doc.getArray('fileList');
 
     doc.transact(() => {
-      ymap.delete(fileId);
-      const index = yFileList.toArray().findIndex(f => f.id === fileId);
-      if (index !== -1) {
-        yFileList.delete(index, 1);
-      }
+      // Find all files that are children of this folder (recursively)
+      const allFiles = yFileList.toArray();
+      const idsToDelete = [fileId];
+      
+      const findChildren = (parentId) => {
+        allFiles.forEach(f => {
+          if (f.parentId === parentId) {
+            idsToDelete.push(f.id);
+            if (f.isFolder) findChildren(f.id);
+          }
+        });
+      };
+
+      // If it's a folder, find all descendants
+      const target = allFiles.find(f => f.id === fileId);
+      if (target?.isFolder) findChildren(fileId);
+
+      // Unique IDs to handle any circularity or redundancy
+      const uniqueIds = Array.from(new Set(idsToDelete));
+
+      uniqueIds.forEach(id => {
+        ymap.delete(id);
+        const index = yFileList.toArray().findIndex(f => f.id === id);
+        if (index !== -1) {
+          yFileList.delete(index, 1);
+        }
+      });
     });
   }, []);
 

@@ -3,10 +3,15 @@ const nodemailer = require('nodemailer');
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: process.env.SMTP_EMAIL,
-    pass: process.env.SMTP_PASS,
+    user: process.env.SMTP_EMAIL || '',
+    pass: process.env.SMTP_PASS || '',
   },
 });
+
+// Check configuration
+if (!process.env.SMTP_EMAIL || !process.env.SMTP_PASS) {
+  console.warn('WARNING: SMTP credentials are not fully configured. Verification emails will fail.');
+}
 
 /**
  * Sends a premium verification email with a 6-digit code.

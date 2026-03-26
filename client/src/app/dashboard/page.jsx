@@ -37,7 +37,7 @@ export default function Dashboard() {
     }
   }, []);
 
-  const userId = user?.id;
+  const userId = user?._id;
   const router = useRouter();
 
   // Modal States

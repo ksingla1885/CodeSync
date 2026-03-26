@@ -7,6 +7,15 @@ exports.requestCode = async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Email is required' });
 
+    // Verify DB connection before performing operations
+    const mongoose = require('mongoose');
+    if (mongoose.connection.readyState !== 1) {
+      console.error('[AUTH] Database is not connected. ReadyState:', mongoose.connection.readyState);
+      return res.status(500).json({ 
+        error: 'Database connection is not established. Please check your MONGODB_URI in the environment variables.' 
+      });
+    }
+
     // Generate 6-digit code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expires = new Date(Date.now() + 10 * 60000); // 10 minutes
@@ -27,8 +36,16 @@ exports.requestCode = async (req, res) => {
     console.log(`[AUTH] Verification email sent to ${email}`);
     res.json({ message: 'Verification code sent to your email' });
   } catch (error) {
-    console.error('Email Send Error:', error);
-    res.status(500).json({ error: 'Failed to send verification email. Please check your SMTP settings.' });
+    console.error('Auth Error Details:', {
+      message: error.message,
+      stack: error.stack,
+      env: {
+        has_mongodb: !!process.env.MONGODB_URI,
+        has_email: !!process.env.SMTP_EMAIL,
+        has_pass: !!process.env.SMTP_PASS
+      }
+    });
+    res.status(500).json({ error: `Internal Server Error: ${error.message}. Please check backend logs for details.` });
   }
 };
 

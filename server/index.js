@@ -7,26 +7,49 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 
 const app = express();
+// CORS Configuration
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  'http://localhost:3000',
+  'http://localhost:5173', // Vite default
+  'http://localhost:5000'
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || '*',
+  origin: (origin, callback) => {
+    // allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1 && process.env.CLIENT_URL !== '*') {
+      return callback(new Error('CORS Policy: This origin is not allowed'), false);
+    }
+    return callback(null, true);
+  },
   methods: ['GET', 'POST', 'PATCH', 'DELETE'],
 }));
 app.use(express.json());
 
 // Database Connection
-mongoose.connect(process.env.MONGODB_URI)
-  .then(async () => {
-    console.log('Connected to MongoDB');
-    // Auto-seed if empty
-    const User = require('./models/User');
-    const count = await User.countDocuments();
-    if (count === 0) {
-      console.log('Database empty, seeding...');
-      const seed = require('./seed');
-      await seed();
-    }
+if (!process.env.MONGODB_URI) {
+  console.error('CRITICAL ERROR: MONGODB_URI is not defined in environment variables!');
+} else {
+  mongoose.connect(process.env.MONGODB_URI, {
+    serverSelectionTimeoutMS: 5000, // Timeout after 5 seconds instead of hanging
   })
-  .catch(err => console.error('MongoDB connection error:', err));
+    .then(async () => {
+      console.log('Successfully connected to MongoDB');
+      // Auto-seed if empty
+      const User = require('./models/User');
+      const count = await User.countDocuments();
+      if (count === 0) {
+        console.log('Database empty, seeding...');
+        const seed = require('./seed');
+        await seed();
+      }
+    })
+    .catch(err => {
+      console.error('CRITICAL ERROR: MongoDB connection failed:', err.message);
+    });
+}
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -81,5 +104,5 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
+  console.log(`[V1.1] Server listening on port ${PORT}`);
 });

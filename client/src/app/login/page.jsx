@@ -26,7 +26,7 @@ export default function LoginPage() {
   const handleRequestCode = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
+    console.log(`[AUTH] Requesting code from: ${SERVER_URL}/api/auth/request-code for: ${email}`);
     try {
       const res = await fetch(`${SERVER_URL}/api/auth/request-code`, {
         method: 'POST',
@@ -38,10 +38,11 @@ export default function LoginPage() {
         setStep(2);
         setSuccess('One-time code sent to your email.');
       } else {
-        setError(data.error || 'Failed to send code');
+        setError(data.error || 'Failed to send code. Double check your configuration.');
       }
     } catch (err) {
-      setError('Connection error. Please check your backend.');
+      console.error('[AUTH] Fetch Error:', err);
+      setError(`Connection error to ${SERVER_URL}. Please check your backend is running.`);
     } finally {
       setLoading(false);
     }

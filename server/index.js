@@ -32,8 +32,7 @@ let isConnected = false;
 const connectDB = async () => {
     if (isConnected) return;
     if (!process.env.MONGODB_URI) {
-        console.error('CRITICAL ERROR: MONGODB_URI is not defined in environment variables!');
-        return;
+        throw new Error('MONGODB_URI is not defined in environment variables! Please add it in Vercel settings.');
     }
     try {
         await mongoose.connect(process.env.MONGODB_URI, {
@@ -41,7 +40,8 @@ const connectDB = async () => {
         });
         isConnected = true;
         console.log('Successfully connected to MongoDB');
-        // Auto-seed if empty (Note: seeding in serverless might be slow/unreliable)
+        
+        // Auto-seed if empty (only for local dev or first run)
         const User = require('./models/User');
         const count = await User.countDocuments();
         if (count === 0) {
@@ -51,38 +51,27 @@ const connectDB = async () => {
         }
     } catch (err) {
         console.error('CRITICAL ERROR: MongoDB connection failed:', err.message);
+        throw err; // Re-throw to inform Vercel of the failure
     }
 };
 
-// Middleware to ensure DB connection before every request on serverless
+// Middleware to ensure DB connection before every request
 app.use(async (req, res, next) => {
-    await connectDB();
-    next();
+    try {
+        await connectDB();
+        next();
+    } catch (err) {
+        res.status(500).json({ status: 'ERROR', message: 'Database connection failed', error: err.message });
+    }
 });
 
-
-const server = http.createServer(app);
-
-// NOTE: Socket.io does NOT work on Vercel Serverless Functions.
-// These connections will drop once the function execution window closes.
-// For full WebSocket support, use a persistent hosting provider like Render.
-const io = new Server(server, {
-  cors: {
-    origin: process.env.CLIENT_URL || '*',
-    methods: ['GET', 'POST'],
-  },
-});
-
-const { setupYjs } = require('./websocket/yjs-provider');
-const { executeCode } = require('./controllers/executionController');
 const projectRoutes = require('./routes/projectRoutes');
 const authRoutes = require('./routes/authRoutes');
-
-setupYjs(io);
+const { executeCode } = require('./controllers/executionController');
 
 // Basic route
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Collaboration server is running (Serverless Mode)' });
+  res.json({ status: 'OK', message: 'CodeSync API is running' });
 });
 
 // API Routes
@@ -90,37 +79,40 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/auth', authRoutes);
 app.post('/api/execute', executeCode);
 
-
-// Socket.IO for real-time features (limited on Vercel)
-io.on('connection', (socket) => {
-  console.log(`User connected: ${socket.id}`);
-
-  // Join a specific project room
-  socket.on('join-project', (projectId) => {
-    socket.join(projectId);
-    console.log(`User ${socket.id} joined project: ${projectId}`);
-  });
-
-  // Handle chat messages
-  socket.on('send-message', ({ projectId, message, sender }) => {
-    io.to(projectId).emit('receive-message', { message, sender, timestamp: new Date() });
-  });
-
-  // Handle cursor movement
-  socket.on('cursor-move', ({ projectId, position, user }) => {
-    socket.to(projectId).emit('cursor-update', { position, user, id: socket.id });
-  });
-
-  socket.on('disconnect', () => {
-    console.log(`User disconnected: ${socket.id}`);
-  });
-});
-
+// Environment-specific setup (Socket.io/Yjs only for persistent servers)
 if (process.env.VERCEL !== '1') {
-  const PORT = process.env.PORT || 5000;
-  server.listen(PORT, () => {
-    console.log(`[V1.1] Server listening on port ${PORT}`);
-  });
+    const server = http.createServer(app);
+    const io = new Server(server, {
+        cors: {
+            origin: process.env.CLIENT_URL || '*',
+            methods: ['GET', 'POST'],
+        },
+    });
+
+    const { setupYjs } = require('./websocket/yjs-provider');
+    setupYjs(io);
+
+    io.on('connection', (socket) => {
+        console.log(`User connected: ${socket.id}`);
+        socket.on('join-project', (projectId) => {
+            socket.join(projectId);
+        });
+        socket.on('send-message', ({ projectId, message, sender }) => {
+            io.to(projectId).emit('receive-message', { message, sender, timestamp: new Date() });
+        });
+        socket.on('cursor-move', ({ projectId, position, user }) => {
+            socket.to(projectId).emit('cursor-update', { position, user, id: socket.id });
+        });
+        socket.on('disconnect', () => {
+            console.log(`User disconnected: ${socket.id}`);
+        });
+    });
+
+    const PORT = process.env.PORT || 5000;
+    server.listen(PORT, () => {
+        console.log(`[LOCAL] Server listening on port ${PORT}`);
+    });
 }
+
 
 module.exports = app;

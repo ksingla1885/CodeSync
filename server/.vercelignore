@@ -1,0 +1,11 @@
+node_modules
+.env
+docker
+.gitignore
+README.md
+DEPLOYMENT.md
+cleanup.js
+test_server.js
+test_smtp.js
+seed.js
+*lock.json

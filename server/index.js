@@ -28,30 +28,44 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Database Connection
-if (!process.env.MONGODB_URI) {
-  console.error('CRITICAL ERROR: MONGODB_URI is not defined in environment variables!');
-} else {
-  mongoose.connect(process.env.MONGODB_URI, {
-    serverSelectionTimeoutMS: 5000, // Timeout after 5 seconds instead of hanging
-  })
-    .then(async () => {
-      console.log('Successfully connected to MongoDB');
-      // Auto-seed if empty
-      const User = require('./models/User');
-      const count = await User.countDocuments();
-      if (count === 0) {
-        console.log('Database empty, seeding...');
-        const seed = require('./seed');
-        await seed();
-      }
-    })
-    .catch(err => {
-      console.error('CRITICAL ERROR: MongoDB connection failed:', err.message);
-    });
-}
+let isConnected = false;
+const connectDB = async () => {
+    if (isConnected) return;
+    if (!process.env.MONGODB_URI) {
+        console.error('CRITICAL ERROR: MONGODB_URI is not defined in environment variables!');
+        return;
+    }
+    try {
+        await mongoose.connect(process.env.MONGODB_URI, {
+            serverSelectionTimeoutMS: 5000,
+        });
+        isConnected = true;
+        console.log('Successfully connected to MongoDB');
+        // Auto-seed if empty (Note: seeding in serverless might be slow/unreliable)
+        const User = require('./models/User');
+        const count = await User.countDocuments();
+        if (count === 0) {
+            console.log('Database empty, seeding...');
+            const seed = require('./seed');
+            await seed();
+        }
+    } catch (err) {
+        console.error('CRITICAL ERROR: MongoDB connection failed:', err.message);
+    }
+};
+
+// Middleware to ensure DB connection before every request on serverless
+app.use(async (req, res, next) => {
+    await connectDB();
+    next();
+});
+
 
 const server = http.createServer(app);
+
+// NOTE: Socket.io does NOT work on Vercel Serverless Functions.
+// These connections will drop once the function execution window closes.
+// For full WebSocket support, use a persistent hosting provider like Render.
 const io = new Server(server, {
   cors: {
     origin: process.env.CLIENT_URL || '*',
@@ -68,7 +82,7 @@ setupYjs(io);
 
 // Basic route
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Collaboration server is running' });
+  res.json({ status: 'OK', message: 'Collaboration server is running (Serverless Mode)' });
 });
 
 // API Routes
@@ -77,7 +91,7 @@ app.use('/api/auth', authRoutes);
 app.post('/api/execute', executeCode);
 
 
-// Socket.IO for real-time features
+// Socket.IO for real-time features (limited on Vercel)
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`);
 
@@ -102,7 +116,11 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`[V1.1] Server listening on port ${PORT}`);
-});
+if (process.env.VERCEL !== '1') {
+  const PORT = process.env.PORT || 5000;
+  server.listen(PORT, () => {
+    console.log(`[V1.1] Server listening on port ${PORT}`);
+  });
+}
+
+module.exports = app;

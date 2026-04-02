@@ -69,7 +69,11 @@ const projectRoutes = require('./routes/projectRoutes');
 const authRoutes = require('./routes/authRoutes');
 const { executeCode } = require('./controllers/executionController');
 
-// Basic route
+// Basic routes
+app.get('/', (req, res) => {
+  res.send('<h1>🚀 CodeSync API is live!</h1><p>The collaboration server is running. Access the frontend to start coding.</p>');
+});
+
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'CodeSync API is running' });
 });
@@ -110,7 +114,7 @@ if (process.env.VERCEL !== '1') {
 
     const PORT = process.env.PORT || 5000;
     server.listen(PORT, () => {
-        console.log(`[LOCAL] Server listening on port ${PORT}`);
+        console.log(`[SERVER] Listening on port ${PORT}`);
     });
 }
 

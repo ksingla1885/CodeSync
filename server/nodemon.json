@@ -1,0 +1,7 @@
+{
+  "events": {
+    "restart": "node scripts/kill-port.js 5000",
+    "crash": "node scripts/kill-port.js 5000"
+  },
+  "delay": "1000"
+}

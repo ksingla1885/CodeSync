@@ -28,41 +28,45 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// DB Connection
 let isConnected = false;
 const connectDB = async () => {
     if (isConnected) return;
-    if (!process.env.MONGODB_URI) {
-        throw new Error('MONGODB_URI is not defined in environment variables! Please add it in Vercel settings.');
+    const uri = process.env.MONGODB_URI;
+    if (!uri) {
+        throw new Error('MONGODB_URI is not defined!');
     }
     try {
-        await mongoose.connect(process.env.MONGODB_URI, {
-            serverSelectionTimeoutMS: 5000,
+        console.log('[DB] Connecting...');
+        await mongoose.connect(uri, {
+            serverSelectionTimeoutMS: 10000,
         });
         isConnected = true;
-        console.log('Successfully connected to MongoDB');
+        console.log('[DB] Connected successfully');
         
-        // Auto-seed if empty (only for local dev or first run)
+        // Auto-seed if empty
         const User = require('./models/User');
         const count = await User.countDocuments();
         if (count === 0) {
-            console.log('Database empty, seeding...');
+            console.log('[DB] Database empty, seeding...');
             const seed = require('./seed');
             await seed();
         }
     } catch (err) {
-        console.error('CRITICAL ERROR: MongoDB connection failed:', err.message);
-        throw err; // Re-throw to inform Vercel of the failure
+        console.error('[DB] CRITICAL ERROR:', err.message);
+        // Don't exit process in dev, just log
     }
 };
 
-// Middleware to ensure DB connection before every request
-app.use(async (req, res, next) => {
-    try {
-        await connectDB();
-        next();
-    } catch (err) {
-        res.status(500).json({ status: 'ERROR', message: 'Database connection failed', error: err.message });
+// Start connection immediately
+connectDB();
+
+// Middleware to check connection
+app.use((req, res, next) => {
+    if (!isConnected && req.path !== '/health') {
+        return res.status(503).json({ status: 'ERROR', message: 'Database connecting, please try again in a moment.' });
     }
+    next();
 });
 
 const projectRoutes = require('./routes/projectRoutes');
@@ -113,9 +117,55 @@ if (process.env.VERCEL !== '1') {
     });
 
     const PORT = process.env.PORT || 5000;
+    
+    // Self-healing port cleanup (Windows only)
+    if (process.platform === 'win32') {
+        try {
+            const { execSync } = require('child_process');
+            const stdout = execSync(`netstat -ano | findstr :${PORT}`).toString();
+            const lines = stdout.split('\n');
+            lines.forEach(line => {
+                const parts = line.trim().split(/\s+/);
+                if (parts.length >= 5) {
+                    const pid = parts[parts.length - 1];
+                    if (pid !== '0' && pid !== String(process.pid) && !isNaN(pid)) {
+                        console.log(`[CLEANUP] Killing ghost process ${pid} on port ${PORT}...`);
+                        try { execSync(`taskkill /F /PID ${pid}`); } catch (e) {}
+                    }
+                }
+            });
+        } catch (e) {}
+    }
+
+    server.on('error', (e) => {
+        if (e.code === 'EADDRINUSE') {
+            console.error(`\n❌ [PORT ERROR] Port ${PORT} is already in use.`);
+            console.error(`👉 Potential solutions:`);
+            console.error(`   1. Close any other terminal running this server.`);
+            console.error(`   2. If using VS Code, check for hidden 'node' processes in Task Manager.`);
+            console.error(`   3. Run: taskkill /F /IM node.exe (Warning: kills all Node processes)\n`);
+            process.exit(1);
+        }
+    });
+
     server.listen(PORT, () => {
         console.log(`[SERVER] Listening on port ${PORT}`);
     });
+
+    // Graceful Shutdown
+    const shutdown = async () => {
+        console.log('\n[SERVER] Shutting down gracefully...');
+        server.close(() => {
+            console.log('[SERVER] Closed network connections');
+            mongoose.connection.close(false).then(() => {
+                console.log('[DB] Mongoose connection closed');
+                process.exit(0);
+            });
+        });
+    };
+
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
 }
 
 

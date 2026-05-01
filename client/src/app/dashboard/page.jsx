@@ -2,54 +2,63 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { 
-  Folder, 
-  Plus, 
-  Search, 
-  MoreVertical, 
-  Users, 
-  Clock, 
+import {
+  Folder,
+  Plus,
+  Search,
+  MoreVertical,
+  Users,
+  Clock,
   ChevronRight,
   LayoutGrid,
   List,
   FolderPlus,
   Trash2,
   LogOut,
-  Loader2
+  Loader2,
+  Mail,
+  Bell,
+  Settings,
+  PlusCircle,
+  FolderOpen,
+  Sparkles,
+  Shield,
+  Activity,
+  X
 } from 'lucide-react';
 import ConfirmationModal from '@/components/ConfirmationModal';
+import CustomSelect from '@/components/ui/custom-select'
 
 const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000';
 
 export default function Dashboard() {
-
-  
   // Auth User
   const [user, setUser] = useState(null);
+  const router = useRouter();
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
       setUser(JSON.parse(savedUser));
     } else {
-      // If no user, redirect to login
-      window.location.href = '/login';
+      router.push('/login');
     }
-  }, []);
+  }, [router]);
 
   const userId = user?._id;
-  const router = useRouter();
 
   // Modal States
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
   const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
   const [isAddCollabModalOpen, setIsAddCollabModalOpen] = useState(false);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isUpdatesModalOpen, setIsUpdatesModalOpen] = useState(false);
   const [confirmationModal, setConfirmationModal] = useState({
     isOpen: false,
     title: '',
     message: '',
-    onConfirm: () => {},
+    onConfirm: () => { },
   });
 
   // Data States
@@ -63,14 +72,14 @@ export default function Dashboard() {
   const [newProjectData, setNewProjectData] = useState({ name: '', folder: '' });
   const [tempFolderName, setTempFolderName] = useState('');
   const [selectedProjectId, setSelectedProjectId] = useState('');
-  
+
   // Collaborator States
   const [selectedProjectForCollab, setSelectedProjectForCollab] = useState(null);
   const [collabEmail, setCollabEmail] = useState('');
   const [collabCode, setCollabCode] = useState('');
   const [collabStatus, setCollabStatus] = useState({ type: '', message: '' });
   const [collabLoading, setCollabLoading] = useState(false);
-  const [collabStep, setCollabStep] = useState(1); // 1: Email, 2: Code
+  const [collabStep, setCollabStep] = useState(1);
 
   // Move States
   const [projectToMove, setProjectToMove] = useState(null);
@@ -98,15 +107,9 @@ export default function Dashboard() {
       setLoading(true);
       const res = await fetch(`${SERVER_URL}/api/projects?userId=${userId}`);
       const data = await res.json();
-      
-      if (res.ok && Array.isArray(data)) {
-        setProjects(data);
-      } else {
-        console.error('Fetch Projects Failed:', data.error || 'Invalid format');
-        setProjects([]);
-      }
+      if (res.ok && Array.isArray(data)) setProjects(data);
+      else setProjects([]);
     } catch (err) {
-      console.error('Error fetching projects:', err);
       setProjects([]);
     } finally {
       setLoading(false);
@@ -126,27 +129,19 @@ export default function Dashboard() {
         setNewProjectData({ name: '', folder: '' });
         fetchProjects();
       }
-    } catch (err) {
-      console.error('Error creating project:', err);
-    }
+    } catch (err) { }
   };
 
   const handleDeleteProject = async (projectId) => {
     setConfirmationModal({
       isOpen: true,
       title: 'Delete Project',
-      message: 'Are you sure you want to delete this project? This action cannot be undone.',
+      message: 'Are you sure? This action cannot be undone.',
       onConfirm: async () => {
         try {
-          const res = await fetch(`${SERVER_URL}/api/projects/${projectId}`, {
-            method: 'DELETE',
-          });
-          if (res.ok) {
-            fetchProjects();
-          }
-        } catch (err) {
-          console.error('Error deleting project:', err);
-        }
+          const res = await fetch(`${SERVER_URL}/api/projects/${projectId}`, { method: 'DELETE' });
+          if (res.ok) fetchProjects();
+        } catch (err) { }
       }
     });
   };
@@ -155,18 +150,12 @@ export default function Dashboard() {
     setConfirmationModal({
       isOpen: true,
       title: 'Clear Workspace',
-      message: 'Are you sure you want to delete ALL projects and folders? This will permanently remove all your work.',
+      message: 'Delete ALL projects and folders? This is permanent.',
       onConfirm: async () => {
         try {
-          const res = await fetch(`${SERVER_URL}/api/projects/clear?userId=${userId}`, {
-            method: 'DELETE',
-          });
-          if (res.ok) {
-            fetchProjects();
-          }
-        } catch (err) {
-          console.error('Error clearing workspace:', err);
-        }
+          const res = await fetch(`${SERVER_URL}/api/projects/clear?userId=${userId}`, { method: 'DELETE' });
+          if (res.ok) fetchProjects();
+        } catch (err) { }
       }
     });
   };
@@ -185,30 +174,28 @@ export default function Dashboard() {
         setTargetFolder('');
         fetchProjects();
       }
-    } catch (err) {
-      console.error('Error moving project:', err);
-    }
+    } catch (err) { }
   };
 
   const handleRequestCollabCode = async () => {
     if (!collabEmail) return;
     setCollabLoading(true);
-    setCollabStatus({ type: 'loading', message: 'Sending verification code...' });
+    setCollabStatus({ type: 'loading', message: 'Sending code...' });
     try {
       const res = await fetch(`${SERVER_URL}/api/auth/request-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: collabEmail }),
       });
-      const data = await res.json();
       if (res.ok) {
-        setCollabStatus({ type: 'success', message: 'Verification code sent!' });
+        setCollabStatus({ type: 'success', message: 'Code sent!' });
         setCollabStep(2);
       } else {
-        setCollabStatus({ type: 'error', message: data.error || 'Failed to send code' });
+        const data = await res.json();
+        setCollabStatus({ type: 'error', message: data.error || 'Failed' });
       }
     } catch (err) {
-      setCollabStatus({ type: 'error', message: 'Connection failed' });
+      setCollabStatus({ type: 'error', message: 'Error' });
     } finally {
       setCollabLoading(false);
     }
@@ -218,29 +205,26 @@ export default function Dashboard() {
     e.preventDefault();
     if (!selectedProjectForCollab || !collabEmail || !collabCode) return;
     setCollabLoading(true);
-    setCollabStatus({ type: 'loading', message: 'Verifying and adding...' });
     try {
       const res = await fetch(`${SERVER_URL}/api/projects/${selectedProjectForCollab._id}/collaborators`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: collabEmail, code: collabCode }),
       });
-      const data = await res.json();
       if (res.ok) {
-        setCollabStatus({ type: 'success', message: 'Collaborator added!' });
+        setCollabStatus({ type: 'success', message: 'Added!' });
         setTimeout(() => {
           setIsAddCollabModalOpen(false);
           setCollabEmail('');
           setCollabCode('');
           setCollabStatus({ type: '', message: '' });
           fetchProjects();
-        }, 1500);
+        }, 1000);
       } else {
-        setCollabStatus({ type: 'error', message: data.error || 'Failed to add' });
+        const data = await res.json();
+        setCollabStatus({ type: 'error', message: data.error || 'Failed' });
       }
-    } catch (err) {
-      setCollabStatus({ type: 'error', message: 'Connection failed' });
-    } finally {
+    } catch (err) { } finally {
       setCollabLoading(false);
     }
   };
@@ -258,138 +242,169 @@ export default function Dashboard() {
     return latestB - latestA;
   });
 
-  const filteredFolders = folders.filter(folder => 
+  const filteredFolders = folders.filter(folder =>
     folder.toLowerCase().includes(searchQuery.toLowerCase()) ||
     groupedProjects[folder].some(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  };
+
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white flex">
-      {/* Mini Sidebar */}
-      <aside className="w-20 border-r border-white/5 flex flex-col items-center py-8 gap-10 bg-[#0d0d0d]">
-         <div className="w-12 h-12 rounded-2xl bg-[#8a2be2] flex items-center justify-center shadow-[0_0_20px_rgba(138,43,226,0.2)]">
-            <LayoutGrid size={24} />
-         </div>
-         <nav className="flex flex-col gap-6">
-            <div className="p-3 bg-white/5 text-[#8a2be2] rounded-xl cursor-pointer shadow-lg"><LayoutGrid size={22} /></div>
-            <div className="p-3 text-white/20 hover:text-white transition-colors cursor-pointer"><Users size={22} /></div>
-            <div className="p-3 text-white/20 hover:text-white transition-colors cursor-pointer"><Folder size={22} /></div>
-            <div className="p-3 text-white/20 hover:text-white transition-colors cursor-pointer"><Clock size={22} /></div>
-         </nav>
-         <div className="mt-auto flex flex-col items-center gap-4 mb-8">
-            <div 
-               className="p-3 text-white/20 hover:text-red-400 transition-colors cursor-pointer group relative" 
-               onClick={() => { localStorage.removeItem('user'); window.location.href = '/'; }}
-            >
-               <LogOut size={22} />
-               <span className="absolute left-[110%] top-1/2 -translate-y-1/2 bg-red-500 text-white text-[10px] font-black px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">EXIT</span>
-            </div>
-         </div>
-      </aside>
-
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <nav className="h-24 border-b border-white/5 flex items-center justify-between px-10 bg-[#0a0a0a]/50 backdrop-blur-xl sticky top-0 z-50">
-          <div className="flex flex-col">
-            <h1 className="text-2xl font-black tracking-tight italic">DASHBOARD</h1>
-            <p className="text-[10px] font-bold text-white/20 uppercase tracking-[0.3em]">{user?.email}</p>
+    <div className="min-h-screen bg-[#09090b] text-[#fafafa] flex font-sans selection:bg-white/10">
+      {/* Sidebar */}
+      <aside className="w-64 border-r border-white/[0.06] flex flex-col p-6 bg-[#09090b] hidden lg:flex">
+        <div className="flex items-center gap-3 px-2 mb-10">
+          <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center">
+            <span className="text-black font-bold text-sm">C</span>
           </div>
+          <span className="font-semibold tracking-tight text-lg">CodeSync</span>
+        </div>
 
-          <div className="flex items-center gap-6">
-            <div className="relative group hidden md:block">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-[#8a2be2] transition-colors" size={18} />
-              <input 
-                type="text" 
-                placeholder="Search resources..." 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-white/5 border border-white/5 rounded-2xl pl-12 pr-6 py-3.5 text-sm w-80 focus:outline-none focus:border-[#8a2be2]/30 focus:w-96 transition-all placeholder-white/10 font-medium"
-              />
-            </div>
-            
-            <button 
-              onClick={() => setIsNewProjectModalOpen(true)}
-              className="px-8 py-3.5 rounded-2xl bg-white text-black hover:bg-[#8a2be2] hover:text-white transition-all text-sm font-black shadow-xl active:scale-[0.98] cursor-pointer"
-            >
-              CREATE NEW
-            </button>
-          </div>
+        <nav className="flex-1 space-y-1">
+          <SidebarLink icon={LayoutGrid} label="Dashboard" active onClick={() => router.push('/dashboard')} />
+          <SidebarLink icon={Users} label="Team" onClick={() => setIsAddCollabModalOpen(true)} />
+          <SidebarLink icon={FolderOpen} label="Projects" onClick={() => router.push('/dashboard')} />
+          <SidebarLink icon={Bell} label="Updates" onClick={() => setIsUpdatesModalOpen(true)} />
+          <SidebarLink icon={Settings} label="Settings" onClick={() => setIsSettingsModalOpen(true)} />
         </nav>
 
-        {/* Main Content */}
-        <main className="p-10 max-w-7xl w-full mx-auto flex-1 custom-scrollbar overflow-y-auto">
-          {/* Welcome Section */}
-          <div className="mb-16 flex items-end justify-between">
-            <div>
-              <p className="text-[10px] font-black text-[#8a2be2] uppercase tracking-[0.4em] mb-3">Sync Workspace</p>
-              <h2 className="text-5xl font-black tracking-tighter leading-none italic">
-                <span className="uppercase">HELLO,</span> <br />
-                <span className="text-white/90">
-                  {(user?.name || 'Explorer')
-                    .split(' ')
-                    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-                    .join(' ')}
-                </span>.
-              </h2>
+        <div className="mt-auto space-y-4 pt-6 border-t border-white/[0.06]">
+          <div className="flex items-center gap-3 px-2">
+            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-xs font-medium uppercase">
+              {String(user?.name?.[0] || user?.email?.[0] || 'U')}
             </div>
-             <div className="flex items-center gap-3 bg-white/5 p-1.5 rounded-2xl border border-white/5">
-                <button onClick={() => setViewMode('grid')} className={`p-2.5 rounded-xl transition-all ${viewMode === 'grid' ? 'bg-[#8a2be2] shadow-lg text-white' : 'text-white/20 hover:text-white'}`}><LayoutGrid size={20}/></button>
-                <button onClick={() => setViewMode('list')} className={`p-2.5 rounded-xl transition-all ${viewMode === 'list' ? 'bg-[#8a2be2] shadow-lg text-white' : 'text-white/20 hover:text-white'}`}><List size={20}/></button>
-             </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{String(user?.name || 'User')}</p>
+              <p className="text-xs text-white/40 truncate">{String(user?.email || '')}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => { localStorage.removeItem('user'); router.push('/'); }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/40 hover:text-white hover:bg-white/[0.04] rounded-lg transition-all"
+          >
+            <LogOut size={16} />
+            <span>Sign out</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top Header */}
+        <header className="h-16 border-b border-white/[0.06] flex items-center justify-between px-8 bg-[#09090b]/80 backdrop-blur-md sticky top-0 z-30">
+          <div className="flex items-center gap-4 text-sm text-white/40">
+            <span>Workspace</span>
+            <ChevronRight size={14} />
+            <span className="text-white font-medium">Overview</span>
           </div>
 
-          <div className="flex items-center gap-4 mb-12">
-             <button onClick={() => setIsNewFolderModalOpen(true)} className="px-6 py-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 text-[11px] font-black uppercase tracking-widest transition-all cursor-pointer">New Folder</button>
-             <button onClick={handleClearAll} className="px-6 py-3 rounded-xl bg-red-500/5 border border-red-500/10 hover:bg-red-500/10 text-red-500/50 hover:text-red-500 text-[11px] font-black uppercase tracking-widest transition-all cursor-pointer">Purge All</button>
+          <div className="flex items-center gap-4">
+            <div className="relative hidden sm:block">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" />
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-white/[0.04] border border-white/[0.08] rounded-full pl-9 pr-4 py-1.5 text-xs w-48 focus:w-64 focus:outline-none focus:border-white/20 transition-all placeholder-white/20"
+              />
+            </div>
+            <button
+              onClick={() => setIsNewProjectModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-white text-black text-xs font-semibold hover:bg-white/90 transition-all active:scale-95"
+            >
+              <Plus size={14} />
+              Create
+            </button>
+          </div>
+        </header>
+
+        <main className="flex-1 p-8 lg:p-12 max-w-6xl w-full mx-auto overflow-y-auto">
+          {/* Hero Section */}
+          <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight mb-2">
+                {String(getGreeting())}, {String(user?.name?.split(' ')[0] || 'there')}
+              </h2>
+              <p className="text-white/40 text-sm">
+                Here's what's happening in your workspace today.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 p-1 bg-white/[0.04] border border-white/[0.08] rounded-lg">
+              <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white/10 text-white' : 'text-white/20 hover:text-white'}`}><LayoutGrid size={16} /></button>
+              <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white/10 text-white' : 'text-white/20 hover:text-white'}`}><List size={16} /></button>
+            </div>
           </div>
 
-          {/* Folders & Projects */}
-          <div className="space-y-20">
+          {/* Quick Actions */}
+          <div className="flex items-center gap-3 mb-12">
+            <button onClick={() => setIsNewFolderModalOpen(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] text-xs font-medium transition-all">
+              <FolderPlus size={14} />
+              New Folder
+            </button>
+            <button onClick={handleClearAll} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/[0.04] border border-red-500/10 hover:bg-red-500/[0.08] text-red-400/60 hover:text-red-400 text-xs font-medium transition-all">
+              <Trash2 size={14} />
+              Clear All
+            </button>
+          </div>
+
+          {/* Content Area */}
+          <div className="space-y-16">
             {serverStatus === 'offline' && (
-              <div className="mb-8 p-6 bg-red-500/5 border border-red-500/10 rounded-[2rem] flex items-center justify-between animate-pulse">
-                <div className="flex items-center gap-4">
-                  <div className="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]" />
-                  <p className="text-sm font-black uppercase tracking-widest text-red-200/50">Connection Lost: Server Unreachable</p>
+              <div className="p-4 bg-red-500/[0.06] border border-red-500/20 rounded-xl flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                  <p className="text-xs font-medium text-red-400">Server unreachable. Check your connection.</p>
                 </div>
-                <button onClick={() => { setLoading(true); checkServerHealth(); fetchProjects(); }} className="text-[10px] font-black uppercase tracking-widest text-red-400 hover:text-red-300">Reconnect</button>
+                <button onClick={() => { setLoading(true); checkServerHealth(); fetchProjects(); }} className="text-[10px] font-bold uppercase tracking-wider text-red-400 hover:underline">Retry</button>
               </div>
             )}
 
             {loading ? (
-               <div className="flex flex-col items-center justify-center py-32 gap-6 opacity-20">
-                  <Loader2 className="animate-spin" size={48} />
-                  <p className="text-xs font-black uppercase tracking-[0.5em]">Synchronizing...</p>
-               </div>
+              <div className="flex flex-col items-center justify-center py-24 gap-4">
+                <Loader2 className="animate-spin text-white/20" size={32} />
+                <p className="text-xs text-white/20 font-medium">Loading workspace...</p>
+              </div>
             ) : filteredFolders.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-40 text-center bg-white/[0.02] border border-dashed border-white/5 rounded-[3rem]">
-                <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center text-white/10 mb-8 border border-white/5"><Search size={40} /></div>
-                <h3 className="text-2xl font-black italic mb-2">EMPTY WORKSPACE</h3>
-                <p className="text-white/20 text-sm font-medium tracking-wide">No projects found. Create one to get started.</p>
+              <div className="flex flex-col items-center justify-center py-32 text-center rounded-3xl border border-dashed border-white/10">
+                <div className="w-16 h-16 bg-white/[0.03] rounded-2xl flex items-center justify-center text-white/10 mb-6 border border-white/[0.06]">
+                  <FolderOpen size={32} />
+                </div>
+                <h3 className="text-lg font-semibold mb-1">Empty Workspace</h3>
+                <p className="text-white/40 text-sm max-w-[240px]">No projects found in this view. Create one to get started.</p>
+                <button
+                  onClick={() => setIsNewProjectModalOpen(true)}
+                  className="mt-6 px-6 py-2 rounded-full bg-white text-black text-xs font-bold hover:bg-white/90 transition-all"
+                >
+                  Create Project
+                </button>
               </div>
             ) : filteredFolders.map(folder => (
               <section key={folder}>
-                <div className="flex items-center justify-between mb-8 group">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-[#8a2be2] border border-white/5 shadow-lg"><Folder size={20} fill="currentColor" fillOpacity={0.1} /></div>
-                    <h3 className="text-2xl font-black italic flex items-center gap-3 uppercase">{folder}<span className="text-[10px] font-bold not-italic text-white/20 bg-white/5 px-2.5 py-1 rounded-full">{groupedProjects[folder].length}</span></h3>
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-8 h-8 rounded-lg bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-white/40">
+                    <Folder size={16} />
                   </div>
+                  <h3 className="text-lg font-semibold tracking-tight">{folder}</h3>
+                  <span className="text-[10px] font-bold text-white/20 bg-white/[0.04] px-2 py-0.5 rounded-full border border-white/[0.06]">
+                    {groupedProjects[folder].length}
+                  </span>
                 </div>
 
-                <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" : "space-y-4"}>
+                <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-3"}>
                   {groupedProjects[folder].map(project => (
-                    <ProjectCard 
-                      key={project._id} 
-                      project={project} 
-                      viewMode={viewMode} 
-                      onDelete={() => handleDeleteProject(project._id)} 
-                      onMove={(proj) => {
-                        setProjectToMove(proj);
-                        setIsMoveModalOpen(true);
-                      }}
-                      onAddCollab={(proj) => {
-                        setSelectedProjectForCollab(proj);
-                        setIsAddCollabModalOpen(true);
-                      }}
+                    <ProjectCard
+                      key={project._id}
+                      project={project}
+                      viewMode={viewMode}
+                      onDelete={() => handleDeleteProject(project._id)}
+                      onMove={(proj) => { setProjectToMove(proj); setIsMoveModalOpen(true); }}
+                      onAddCollab={(proj) => { setSelectedProjectForCollab(proj); setIsAddCollabModalOpen(true); }}
                     />
                   ))}
                 </div>
@@ -398,318 +413,33 @@ export default function Dashboard() {
           </div>
         </main>
       </div>
-      {isNewProjectModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsNewProjectModalOpen(false)} />
-          <div className="relative bg-[#1a1a1a] border border-white/10 rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl animate-modal-in transform transition-all">
-             <div className="flex items-center gap-4 mb-8">
-                <div className="w-12 h-12 rounded-2xl bg-[#8a2be2]/10 flex items-center justify-center text-[#8a2be2]">
-                   <Plus size={24} />
-                </div>
-                <div>
-                   <h3 className="text-xl font-black italic uppercase italic tracking-tighter">NEW PROJECT</h3>
-                   <p className="text-white/20 text-[10px] font-black uppercase tracking-[0.2em]">Build something amazing</p>
-                </div>
-             </div>
-             
-             <form onSubmit={handleCreateProject} className="space-y-8">
-                <div className="space-y-3">
-                   <label className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] ml-2">Project Name</label>
-                   <input 
-                      autoFocus
-                      required
-                      type="text" 
-                      placeholder="e.g. INTELLIGENCE v1" 
-                      value={newProjectData.name}
-                      onChange={(e) => setNewProjectData({...newProjectData, name: e.target.value})}
-                      className="w-full bg-white/5 border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-[#8a2be2]/50 transition-all placeholder-white/10"
-                   />
-                </div>
-                
-                <div className="space-y-3">
-                   <label className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] ml-2">Choose Destination</label>
-                   <div className="flex gap-2 overflow-x-auto pb-4 custom-scrollbar">
-                      {folders.map(f => (
-                         <button 
-                            key={f}
-                            type="button"
-                            onClick={() => setNewProjectData({...newProjectData, folder: f})}
-                            className={`px-5 py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${newProjectData.folder === f ? 'bg-[#8a2be2] border-[#8a2be2] text-white shadow-lg' : 'bg-white/5 border-white/5 text-white/30 hover:bg-white/10'}`}
-                         >
-                            {f}
-                         </button>
-                      ))}
-                   </div>
-                   <p className="text-[9px] font-bold text-white/10 uppercase tracking-widest text-center mt-2 italic">Defaults to 'My Projects' if none selected</p>
-                </div>
 
-                <div className="flex gap-4 pt-4">
-                   <button 
-                      type="button"
-                      onClick={() => setIsNewProjectModalOpen(false)}
-                      className="flex-1 py-4 rounded-2xl bg-white/5 text-white/40 text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all cursor-pointer"
-                   >
-                      Cancel
-                   </button>
-                   <button 
-                      type="submit"
-                      className="flex-1 py-4 rounded-2xl bg-white text-black text-[10px] font-black uppercase tracking-widest hover:bg-[#8a2be2] hover:text-white transition-all shadow-xl active:scale-[0.98] cursor-pointer"
-                   >
-                      Create Now
-                   </button>
-                </div>
-             </form>
-          </div>
-        </div>
-      )}
+      {/* Modals Container */}
+      <Modals
+        isNewProjectModalOpen={isNewProjectModalOpen} setIsNewProjectModalOpen={setIsNewProjectModalOpen}
+        isNewFolderModalOpen={isNewFolderModalOpen} setIsNewFolderModalOpen={setIsNewFolderModalOpen}
+        isAddCollabModalOpen={isAddCollabModalOpen} setIsAddCollabModalOpen={setIsAddCollabModalOpen}
+        isMoveModalOpen={isMoveModalOpen} setIsMoveModalOpen={setIsMoveModalOpen}
+        isSettingsModalOpen={isSettingsModalOpen} setIsSettingsModalOpen={setIsSettingsModalOpen}
+        isUpdatesModalOpen={isUpdatesModalOpen} setIsUpdatesModalOpen={setIsUpdatesModalOpen}
+        newProjectData={newProjectData} setNewProjectData={setNewProjectData}
+        folders={folders} handleCreateProject={handleCreateProject}
+        tempFolderName={tempFolderName} setTempFolderName={setTempFolderName}
+        selectedProjectId={selectedProjectId} setSelectedProjectId={setSelectedProjectId}
+        projects={projects} fetchProjects={fetchProjects}
+        projectToMove={projectToMove} setProjectToMove={setProjectToMove}
+        targetFolder={targetFolder} setTargetFolder={setTargetFolder} handleMoveProject={handleMoveProject}
+        collabEmail={collabEmail} setCollabEmail={setCollabEmail}
+        collabCode={collabCode} setCollabCode={setCollabCode}
+        collabStatus={collabStatus} setCollabStatus={setCollabStatus}
+        collabLoading={collabLoading} collabStep={collabStep} setCollabStep={setCollabStep}
+        handleRequestCollabCode={handleRequestCollabCode}
+        handleAddCollaboratorAction={handleAddCollaboratorAction}
+        selectedProjectForCollab={selectedProjectForCollab}
+        user={user}
+      />
 
-      {/* Move Project Modal */}
-      {isMoveModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsMoveModalOpen(false)} />
-          <div className="relative bg-[#1a1a1a] border border-white/10 rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl animate-modal-in transform transition-all">
-             <div className="flex items-center gap-4 mb-8">
-                <div className="w-12 h-12 rounded-2xl bg-[#8a2be2]/10 flex items-center justify-center text-[#8a2be2]">
-                   <FolderPlus size={24} />
-                </div>
-                <div>
-                   <h3 className="text-xl font-black italic uppercase">Merge to Folder</h3>
-                   <p className="text-white/20 text-xs font-bold uppercase tracking-widest">{projectToMove?.name}</p>
-                </div>
-             </div>
-
-             <div className="space-y-6">
-                <div className="space-y-3">
-                   <label className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] ml-2">Select Destination</label>
-                   <div className="grid grid-cols-2 gap-3">
-                      {folders.filter(f => f !== 'My Projects').map(f => (
-                         <button 
-                            key={f}
-                            onClick={() => setTargetFolder(f)}
-                            className={`p-4 rounded-2xl border text-[10px] font-black uppercase tracking-widest transition-all text-center ${targetFolder === f ? 'bg-[#8a2be2] border-[#8a2be2] text-white shadow-lg' : 'bg-white/5 border-white/5 text-white/30 hover:bg-white/10'}`}
-                         >
-                            {f}
-                         </button>
-                      ))}
-                   </div>
-                </div>
-
-                <div className="h-px bg-white/5" />
-
-                <div className="space-y-3">
-                   <label className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] ml-2">Or Create New Folder</label>
-                   <input 
-                      type="text" 
-                      placeholder="Custom Folder Name" 
-                      value={targetFolder && !folders.includes(targetFolder) ? targetFolder : ''} 
-                      onChange={(e) => setTargetFolder(e.target.value)}
-                      className="w-full bg-white/5 border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-[#8a2be2]/50 transition-all placeholder-white/10"
-                   />
-                </div>
-
-                <div className="flex gap-4 pt-4">
-                   <button 
-                      onClick={() => setIsMoveModalOpen(false)}
-                      className="flex-1 py-4 rounded-2xl bg-white/5 text-white/40 text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all cursor-pointer"
-                   >
-                      Cancel
-                   </button>
-                   <button 
-                      onClick={handleMoveProject}
-                      disabled={!targetFolder}
-                      className="flex-1 py-4 rounded-2xl bg-[#8a2be2] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[#7a1bd2] transition-all shadow-xl shadow-[#8a2be2]/20 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                   >
-                      Confirm Move
-                   </button>
-                </div>
-             </div>
-          </div>
-        </div>
-      )}
-
-      {/* New Folder Modal */}
-      {isNewFolderModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setIsNewFolderModalOpen(false)} />
-          <div className="relative bg-[#141414] border border-white/10 rounded-3xl w-full max-w-md p-8 shadow-2xl overflow-hidden">
-             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#8a2be2] to-[#c084fc]" />
-             <h3 className="text-2xl font-bold mb-2">Create New Folder</h3>
-             <p className="text-white/40 text-sm mb-6 font-medium">Select a project to move it into this folder.</p>
-             
-             <form onSubmit={async (e) => {
-               e.preventDefault();
-               if (!selectedProjectId) return;
-               
-               try {
-                 const res = await fetch(`${SERVER_URL}/api/projects/${selectedProjectId}`, {
-                   method: 'PATCH',
-                   headers: { 'Content-Type': 'application/json' },
-                   body: JSON.stringify({ folder: tempFolderName }),
-                 });
-                 if (res.ok) {
-                   setIsNewFolderModalOpen(false);
-                   setTempFolderName('');
-                   setSelectedProjectId('');
-                   fetchProjects();
-                 }
-               } catch (err) {
-                 console.error('Error updating project folder:', err);
-               }
-             }} className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-white/30 ml-1">Folder Name</label>
-                  <input 
-                    autoFocus
-                    required
-                    type="text" 
-                    value={tempFolderName}
-                    onChange={(e) => setTempFolderName(e.target.value)}
-                    placeholder="e.g. Experiments, Client Work"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#8a2be2]/50 transition-all"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-white/30 ml-1">Move Project To This Folder</label>
-                  <select 
-                    required
-                    value={selectedProjectId}
-                    onChange={(e) => setSelectedProjectId(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#8a2be2]/50 transition-all appearance-none cursor-pointer"
-                  >
-                    <option value="" disabled className="bg-[#141414]">
-                      {projects.length === 0 ? 'No projects available' : 'Select a project...'}
-                    </option>
-                    {projects.map(p => (
-                      <option key={p._id} value={p._id} className="bg-[#141414]">
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex gap-3">
-                   <button 
-                    type="button"
-                    onClick={() => setIsNewFolderModalOpen(false)}
-                    className="flex-1 px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-sm font-bold transition-all"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit"
-                    className="flex-1 px-4 py-3 rounded-xl bg-[#8a2be2] hover:bg-[#7a1bd2] text-sm font-bold shadow-lg shadow-[#8a2be2]/20 transition-all"
-                  >
-                    Continue
-                  </button>
-                </div>
-             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Add Collaborator Modal */}
-      {isAddCollabModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => { setIsAddCollabModalOpen(false); setCollabStep(1); setCollabStatus({ type: '', message: '' }); }} />
-          <div className="relative bg-[#0d0d0d] border border-white/10 rounded-[2.5rem] w-full max-w-md p-10 shadow-3xl overflow-hidden animate-modal-in transform transition-all group">
-             {/* Dynamic Accent Bar */}
-             <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-[#8a2be2] to-[#c084fc] shadow-[0_0_20px_rgba(138,43,226,0.3)]" />
-             
-             {/* Header */}
-             <div className="text-center space-y-3 mb-10">
-                <div className="w-20 h-20 rounded-[2rem] bg-gradient-to-br from-[#8a2be2]/20 to-transparent flex items-center justify-center text-[#8a2be2] mx-auto border border-white/5 shadow-2xl group-hover:scale-110 transition-transform duration-500">
-                   {collabStep === 1 ? <Users size={32} /> : <Clock size={32} className="animate-pulse" />}
-                </div>
-                <h3 className="text-3xl font-black italic tracking-tighter uppercase leading-none">
-                   {collabStep === 1 ? 'Expand Team' : 'Secure Entry'}
-                </h3>
-                <p className="text-white/20 text-[10px] font-black uppercase tracking-[0.4em] block">
-                   {selectedProjectForCollab?.name}
-                </p>
-             </div>
-
-             <div className="space-y-8">
-                {collabStep === 1 ? (
-                  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                    <div className="space-y-3">
-                      <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em] ml-1 block">Collaborator Identity</label>
-                      <div className="relative group/input">
-                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-white/10 group-focus-within/input:text-[#8a2be2] transition-colors" size={20} />
-                        <input 
-                          autoFocus
-                          type="email" 
-                          placeholder="ENTER EMAIL ADDRESS"
-                          value={collabEmail}
-                          onChange={(e) => setCollabEmail(e.target.value)}
-                          className="w-full bg-white/[0.03] border border-white/5 rounded-2xl pl-12 pr-6 py-5 text-sm focus:outline-none focus:border-[#8a2be2]/50 transition-all font-black tracking-wide placeholder-white/5"
-                        />
-                      </div>
-                    </div>
-                    <button 
-                      onClick={handleRequestCollabCode}
-                      disabled={collabLoading || !collabEmail}
-                      className="group/btn relative w-full py-5 rounded-2xl bg-[#8a2be2] text-white font-black text-[11px] uppercase tracking-[0.3em] hover:bg-[#9d4edd] transition-all shadow-2xl shadow-[#8a2be2]/20 disabled:opacity-30 active:scale-[0.97] cursor-pointer overflow-hidden"
-                    >
-                      <span className="relative z-10">{collabLoading ? 'REQUESTING CODE...' : 'CONTINUE'}</span>
-                      <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-8 animate-in fade-in zoom-in-95 duration-700">
-                    <div className="p-4 bg-white/[0.02] border border-dashed border-white/10 rounded-2xl text-center">
-                       <p className="text-[10px] text-white/40 font-black uppercase tracking-widest mb-1">Code sent to</p>
-                       <p className="text-sm font-black italic text-[#c084fc]">{collabEmail}</p>
-                    </div>
-
-                    <div className="space-y-4">
-                      <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em] text-center block">Access Key</label>
-                      <input 
-                        required
-                        type="text" 
-                        maxLength={6}
-                        value={collabCode}
-                        onChange={(e) => setCollabCode(e.target.value)}
-                        placeholder="••••••"
-                        className="w-full bg-transparent border-b-4 border-white/10 rounded-none px-4 py-4 text-center text-5xl font-black tracking-[0.8em] focus:outline-none focus:border-[#8a2be2] transition-all text-[#8a2be2] placeholder-white/5"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-4">
-                      <button 
-                        onClick={handleAddCollaboratorAction}
-                        disabled={collabLoading || collabCode.length !== 6}
-                        className="group/btn relative w-full py-5 rounded-2xl bg-[#8a2be2] text-white font-black text-[11px] uppercase tracking-[0.3em] hover:bg-[#9d4edd] transition-all shadow-2xl shadow-[#8a2be2]/20 disabled:opacity-30 active:scale-[0.97] cursor-pointer overflow-hidden"
-                      >
-                        <span className="relative z-10">{collabLoading ? 'AUTHORIZING...' : 'VERIFY & ADD'}</span>
-                        <div className="absolute inset-0 bg-black/10 translate-y-[100%] group-hover/btn:translate-y-0 transition-transform duration-500" />
-                      </button>
-                      <button 
-                        onClick={() => { setCollabStep(1); setCollabCode(''); }}
-                        className="text-[9px] font-black text-white/20 uppercase tracking-[0.4em] hover:text-white transition-colors cursor-pointer text-center"
-                      >
-                        ← Edit Credentials
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {collabStatus.message && (
-                  <div className={`p-4 rounded-2xl text-[10px] font-black text-center uppercase tracking-[0.2em] animate-in slide-in-from-top-4 duration-500 border ${
-                    collabStatus.type === 'success' ? 'bg-green-500/10 text-green-400 border-green-500/20' : 
-                    collabStatus.type === 'error' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 
-                    'bg-white/5 text-white/30 border-white/5'
-                  }`}>
-                    {collabStatus.message}
-                  </div>
-                )}
-             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Confirmation Modal */}
-      <ConfirmationModal 
+      <ConfirmationModal
         isOpen={confirmationModal.isOpen}
         title={confirmationModal.title}
         message={confirmationModal.message}
@@ -720,125 +450,400 @@ export default function Dashboard() {
   );
 }
 
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function SidebarLink({ icon: Icon, label, active = false, onClick }) {
+  return (
+    <div
+      onClick={onClick}
+      className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-all cursor-pointer ${active ? 'bg-white/[0.06] text-white' : 'text-white/40 hover:text-white hover:bg-white/[0.03]'}`}
+    >
+      <Icon size={18} />
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function DropdownItem({ icon, label, onClick, danger = false }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center gap-3 px-3 py-2 text-xs font-medium transition-all ${danger
+        ? 'text-red-400/70 hover:text-red-400 hover:bg-red-500/[0.06]'
+        : 'text-white/50 hover:text-white hover:bg-white/[0.04]'
+        }`}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+}
+
 function ProjectCard({ project, viewMode, onDelete, onMove, onAddCollab }) {
   const router = useRouter();
-  const isUncategorized = project.folder === 'My Projects';
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const menuRef = React.useRef(null);
 
-  const handleCardClick = () => {
-    router.push(`/editor/${project._id}`);
-  };
+  React.useEffect(() => {
+    if (!menuOpen) return;
+    const handleClick = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [menuOpen]);
+
+  const MenuDropdown = () => (
+    <div
+      ref={menuRef}
+      className="absolute top-full right-0 mt-1.5 w-44 bg-[#111113] border border-white/[0.08] rounded-xl shadow-2xl z-50 overflow-hidden py-1"
+    >
+      <DropdownItem icon={<ChevronRight size={14} />} label="Open" onClick={() => router.push(`/editor/${project._id}`)} />
+      <DropdownItem icon={<PlusCircle size={14} />} label="Add Collaborator" onClick={() => { setMenuOpen(false); onAddCollab(project); }} />
+      <DropdownItem icon={<FolderPlus size={14} />} label="Move to Folder" onClick={() => { setMenuOpen(false); onMove(project); }} />
+      <div className="my-1 border-t border-white/[0.06]" />
+      <DropdownItem icon={<Trash2 size={14} />} label="Delete" onClick={() => { setMenuOpen(false); onDelete(); }} danger />
+    </div>
+  );
 
   if (viewMode === 'list') {
     return (
-      <div 
-        onClick={handleCardClick}
-        className="flex items-center justify-between p-4 bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 rounded-2xl transition-all group cursor-pointer"
+      <div
+        onClick={() => router.push(`/editor/${project._id}`)}
+        className="flex items-center justify-between p-4 bg-white/[0.02] border border-white/[0.06] rounded-xl hover:bg-white/[0.04] hover:border-white/[0.1] transition-all group cursor-pointer"
       >
-        <div className="flex items-center gap-4 flex-1">
-           <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/40 group-hover:text-[#8a2be2] transition-colors">
-              <Users size={18} />
-           </div>
-           <div>
-              <h4 className="font-bold text-white group-hover:text-[#c084fc] transition-colors">{project.name}</h4>
-              <p className="text-xs text-white/30 flex items-center gap-2 mt-0.5">
-                 <Clock size={12} />
-                 Last edited {new Date(project.updatedAt || project.createdAt).toLocaleDateString()}
-              </p>
-           </div>
+        <div className="flex items-center gap-4 flex-1 min-w-0">
+          <div className="w-10 h-10 rounded-lg bg-white/[0.04] flex items-center justify-center text-white/20 group-hover:text-white transition-colors">
+            <Users size={18} />
+          </div>
+          <div className="min-w-0">
+            <h4 className="font-semibold text-sm text-white truncate">{project.name}</h4>
+            <p className="text-[10px] text-white/30 flex items-center gap-1.5 mt-0.5">
+              <Clock size={10} />
+              Updated {new Date(project.updatedAt || project.createdAt).toLocaleDateString()}
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-4">
-           {isUncategorized && (
-             <button 
-               onClick={(e) => { e.preventDefault(); e.stopPropagation(); onMove(project); }}
-               className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#8a2be2]/10 border border-[#8a2be2]/20 text-[#c084fc] text-[10px] font-black uppercase tracking-widest hover:bg-[#8a2be2] hover:text-white transition-all cursor-pointer shadow-lg shadow-[#8a2be2]/10"
-             >
-                Move to Folder
-             </button>
-           )}
-           <div className="flex -space-x-2">
-              {Array.isArray(project.collaborators) && project.collaborators.slice(0, 3).map((c, i) => (
-                <div key={i} className="w-7 h-7 rounded-full border-2 border-[#141414] bg-[#8a2be2] flex items-center justify-center text-[9px] font-bold">
-                  {c.name ? c.name[0] : '?'}
-                </div>
-              ))}
-              {Array.isArray(project.collaborators) && project.collaborators.length > 3 && (
-                <div className="w-7 h-7 rounded-full border-2 border-[#141414] bg-white/10 flex items-center justify-center text-[9px] font-bold">
-                   +{project.collaborators.length - 3}
-                </div>
-              )}
-           </div>
-           <button 
-             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(); }}
-             className="p-2 text-white/10 hover:text-red-400 transition-colors cursor-pointer"
-           >
-              <Trash2 size={18} />
-           </button>
+        <div className="relative ml-4" ref={menuRef}>
+          <button
+            onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
+            className="p-2 text-white/20 hover:text-white hover:bg-white/[0.06] rounded-lg transition-all opacity-0 group-hover:opacity-100"
+          >
+            <MoreVertical size={16} />
+          </button>
+          {menuOpen && <MenuDropdown />}
         </div>
       </div>
     );
   }
 
   return (
-    <div 
-      onClick={handleCardClick}
-      className="bg-[#141414] border border-white/5 rounded-3xl p-6 hover:border-[#8a2be2]/30 hover:bg-[#1a1a1a] transition-all group active:scale-[0.98] relative overflow-hidden cursor-pointer"
+    <div
+      onClick={() => router.push(`/editor/${project._id}`)}
+      className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-5 hover:bg-white/[0.04] hover:border-white/[0.12] transition-all group relative overflow-visible cursor-pointer"
     >
-      {/* Glow Effect */}
-      <div className="absolute top-0 right-0 w-24 h-24 bg-[#8a2be2]/5 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
-      
-      <div className="flex items-start justify-between mb-6 relative z-10">
-        <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-white/20 group-hover:bg-[#8a2be2]/10 group-hover:text-[#8a2be2] transition-all">
-          <Users size={24} />
+      <div className="flex items-start justify-between mb-8">
+        <div className="w-10 h-10 rounded-xl bg-white/[0.04] flex items-center justify-center text-white/20 group-hover:text-white transition-all">
+          <Users size={20} />
         </div>
-        <div className="flex gap-2">
-           {isUncategorized && (
-             <button 
-               onClick={(e) => { e.preventDefault(); e.stopPropagation(); onMove(project); }}
-               className="p-2 bg-white/5 border border-white/10 rounded-xl text-white/20 hover:text-[#c084fc] hover:border-[#8a2be2]/30 transition-all cursor-pointer shadow-xl relative z-20"
-               title="Move to Folder"
-             >
-                <FolderPlus size={18} />
-             </button>
-           )}
-           <button 
-             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(); }}
-             className="p-2 text-white/10 hover:text-red-400 transition-colors cursor-pointer relative z-20"
-           >
-             <Trash2 size={18} />
-           </button>
+        <div className="relative">
+          <button
+            onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
+            className="p-2 text-white/20 hover:text-white hover:bg-white/[0.06] rounded-lg transition-all opacity-0 group-hover:opacity-100"
+          >
+            <MoreVertical size={16} />
+          </button>
+          {menuOpen && <MenuDropdown />}
         </div>
       </div>
 
-      <div className="space-y-1 mb-8 relative z-10">
-        <h4 className="text-lg font-bold group-hover:text-[#c084fc] transition-colors">{project.name}</h4>
-        <div className="flex items-center gap-2 text-xs text-white/30">
-           <span className="flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500/50" />
-              Active
-           </span>
-           <span>•</span>
-           <span>{project.collaborators.length} collaborators</span>
-        </div>
-      </div>
-
-      <div className="pt-6 border-t border-white/5 flex items-center justify-between relative z-10">
+      <h4 className="font-semibold text-base mb-1 group-hover:text-white truncate">{project.name}</h4>
+      <div className="flex items-center justify-between mt-6">
         <div className="flex -space-x-2">
-           {Array.isArray(project.collaborators) && project.collaborators.map((c, i) => (
-             <div key={i} title={c.name} className="w-8 h-8 rounded-full border-2 border-[#141414] bg-[#8a2be2] flex items-center justify-center text-[10px] font-black shadow-lg">
-               {c.name ? c.name[0] : '?'}
-             </div>
-           ))}
-           <div 
-             onClick={(e) => { e.stopPropagation(); onAddCollab(project); }}
-             className="w-8 h-8 rounded-full border-2 border-[#141414] bg-white/5 border-dashed flex items-center justify-center text-white/20 hover:text-white hover:border-[#8a2be2] transition-all cursor-pointer"
-           >
-              <Plus size={12} />
-           </div>
+          {Array.isArray(project.collaborators) && project.collaborators.slice(0, 3).map((c, i) => (
+            <div key={i} className="w-6 h-6 rounded-full border-2 border-[#09090b] bg-white/10 flex items-center justify-center text-[8px] font-bold uppercase" title={c.email}>
+              {c.name?.[0] || c.email?.[0]}
+            </div>
+          ))}
+          {Array.isArray(project.collaborators) && project.collaborators.length > 3 && (
+            <div className="w-6 h-6 rounded-full border-2 border-[#09090b] bg-white/5 flex items-center justify-center text-[8px] font-bold text-white/40">
+              +{project.collaborators.length - 3}
+            </div>
+          )}
         </div>
-        <div className="text-[10px] font-bold text-white/20 uppercase tracking-widest">
-           {new Date(project.createdAt).toLocaleDateString()}
+        <div className="text-[10px] text-white/20 font-medium">
+          {new Date(project.updatedAt || project.createdAt).toLocaleDateString()}
         </div>
       </div>
+    </div>
+  );
+}
+
+function Modals({
+  isNewProjectModalOpen, setIsNewProjectModalOpen,
+  isNewFolderModalOpen, setIsNewFolderModalOpen,
+  isAddCollabModalOpen, setIsAddCollabModalOpen,
+  isMoveModalOpen, setIsMoveModalOpen,
+  isSettingsModalOpen, setIsSettingsModalOpen,
+  isUpdatesModalOpen, setIsUpdatesModalOpen,
+  newProjectData, setNewProjectData,
+  folders, handleCreateProject,
+  tempFolderName, setTempFolderName,
+  selectedProjectId, setSelectedProjectId,
+  projects, fetchProjects,
+  projectToMove, setProjectToMove,
+  targetFolder, setTargetFolder, handleMoveProject,
+  collabEmail, setCollabEmail,
+  collabCode, setCollabCode,
+  collabStatus, setCollabStatus,
+  collabLoading, collabStep, setCollabStep,
+  handleRequestCollabCode,
+  handleAddCollaboratorAction,
+  selectedProjectForCollab,
+  user
+}) {
+  const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000';
+
+  return (
+    <>
+      {/* New Project Modal */}
+      {isNewProjectModalOpen && (
+        <ModalWrapper onClose={() => setIsNewProjectModalOpen(false)} title="New Project">
+          <form onSubmit={handleCreateProject} className="space-y-6">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/30 ml-1">Project Name</label>
+              <input
+                autoFocus required type="text" placeholder="Design System..."
+                value={newProjectData.name} onChange={(e) => setNewProjectData({ ...newProjectData, name: e.target.value })}
+                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-white/20 transition-all"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/30 ml-1">Destination Folder</label>
+              <CustomSelect
+                value={newProjectData.folder}
+                onChange={(val) => setNewProjectData({ ...newProjectData, folder: val })}
+                options={[
+                  { value: '', label: 'My Projects (Default)' },
+                  ...folders.filter(f => f !== 'My Projects').map(f => ({ value: f, label: f }))
+                ]}
+                placeholder="My Projects (Default)"
+              />
+            </div>
+            <button type="submit" className="w-full py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-white/90 transition-all active:scale-95">Create Project</button>
+          </form>
+        </ModalWrapper>
+      )}
+
+      {/* New Folder Modal */}
+      {isNewFolderModalOpen && (
+        <ModalWrapper onClose={() => setIsNewFolderModalOpen(false)} title="New Folder">
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            if (!selectedProjectId) return;
+            const res = await fetch(`${SERVER_URL}/api/projects/${selectedProjectId}`, {
+              method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ folder: tempFolderName }),
+            });
+            if (res.ok) { setIsNewFolderModalOpen(false); setTempFolderName(''); setSelectedProjectId(''); fetchProjects(); }
+          }} className="space-y-6">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/30 ml-1">Folder Name</label>
+              <input
+                autoFocus required type="text" placeholder="Client Work..."
+                value={tempFolderName} onChange={(e) => setTempFolderName(e.target.value)}
+                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-white/20 transition-all"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/30 ml-1">Initial Project</label>
+              <CustomSelect
+                value={selectedProjectId}
+                onChange={(val) => setSelectedProjectId(val)}
+                options={[
+                  { value: '', label: 'Select project to move...', disabled: true },
+                  ...projects.map(p => ({ value: p._id, label: p.name }))
+                ]}
+                placeholder="Select project..."
+              />
+            </div>
+            <button type="submit" className="w-full py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-white/90 transition-all active:scale-95">Create Folder</button>
+          </form>
+        </ModalWrapper>
+      )}
+
+      {/* Move Project Modal */}
+      {isMoveModalOpen && (
+        <ModalWrapper onClose={() => setIsMoveModalOpen(false)} title="Move Project">
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <p className="text-xs text-white/40 ml-1">Move <span className="text-white font-medium">{projectToMove?.name}</span> to:</p>
+              <div className="grid grid-cols-2 gap-2">
+                {folders.map(f => (
+                  <button key={f} onClick={() => setTargetFolder(f)} className={`p-3 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all ${targetFolder === f ? 'bg-white text-black border-white' : 'bg-white/[0.04] border-white/[0.08] text-white/40 hover:bg-white/[0.08]'}`}>{f}</button>
+                ))}
+              </div>
+            </div>
+            <div className="h-px bg-white/[0.08]" />
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/30 ml-1">Or Create New Folder</label>
+              <input
+                type="text" placeholder="Custom..." value={targetFolder && !folders.includes(targetFolder) ? targetFolder : ''}
+                onChange={(e) => setTargetFolder(e.target.value)}
+                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-white/20 transition-all"
+              />
+            </div>
+            <button onClick={handleMoveProject} disabled={!targetFolder} className="w-full py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-white/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed">Confirm Move</button>
+          </div>
+        </ModalWrapper>
+      )}
+
+      {/* Add Collab Modal */}
+      {isAddCollabModalOpen && (
+        <ModalWrapper onClose={() => { setIsAddCollabModalOpen(false); setCollabStep(1); setCollabStatus({ type: '', message: '' }); }} title="Add Team Member">
+          <div className="space-y-6">
+            <div className="text-center p-4 bg-white/[0.02] border border-dashed border-white/[0.08] rounded-2xl">
+              <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest mb-1">Project</p>
+              <p className="text-sm font-semibold text-white/70">{selectedProjectForCollab?.name}</p>
+            </div>
+
+            {collabStep === 1 ? (
+              <div className="space-y-6 animate-in fade-in duration-500">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-white/30 ml-1">Email Address</label>
+                  <input autoFocus type="email" placeholder="teammate@company.com" value={collabEmail} onChange={(e) => setCollabEmail(e.target.value)} className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-white/20 transition-all" />
+                </div>
+                <button onClick={handleRequestCollabCode} disabled={collabLoading || !collabEmail} className="w-full py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-white/90 transition-all active:scale-95 disabled:opacity-30">{collabLoading ? 'Requesting...' : 'Send Code'}</button>
+              </div>
+            ) : (
+              <div className="space-y-6 animate-in fade-in duration-500">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-white/30 ml-1 text-center block">Verification Code</label>
+                  <input required type="text" maxLength={6} value={collabCode} onChange={(e) => setCollabCode(e.target.value)} placeholder="000000" className="w-full bg-transparent border-b-2 border-white/10 text-center text-3xl font-bold tracking-[0.4em] focus:outline-none focus:border-white/40 transition-all py-4" />
+                </div>
+                <div className="flex flex-col gap-3">
+                  <button onClick={handleAddCollaboratorAction} disabled={collabLoading || collabCode.length !== 6} className="w-full py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-white/90 transition-all">{collabLoading ? 'Adding...' : 'Verify & Add'}</button>
+                  <button onClick={() => setCollabStep(1)} className="text-[10px] font-bold text-white/20 uppercase tracking-widest hover:text-white transition-colors">Edit Email</button>
+                </div>
+              </div>
+            )}
+            {collabStatus.message && (
+              <div className={`p-3 rounded-xl text-[10px] font-bold text-center uppercase tracking-widest border ${collabStatus.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : collabStatus.type === 'error' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-white/5 text-white/30 border-white/10'}`}>{String(collabStatus.message)}</div>
+            )}
+          </div>
+        </ModalWrapper>
+      )}
+      {/* Settings Modal */}
+      {isSettingsModalOpen && (
+        <ModalWrapper title="Account Settings" onClose={() => setIsSettingsModalOpen(false)}>
+          <div className="space-y-6">
+            <div className="flex items-center gap-4 p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+              <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center text-lg font-medium uppercase text-white/60">
+                {user?.name?.[0] || user?.email?.[0]}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white truncate">{user?.name || 'User'}</p>
+                <p className="text-xs text-white/30 truncate">{user?.email}</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-white/20 ml-1">Preferences</label>
+              <div className="space-y-1">
+                <SettingsItem icon={<Shield size={14} />} label="Security & Password" />
+                <SettingsItem icon={<Activity size={14} />} label="System Status" status="Online" />
+                <SettingsItem icon={<Sparkles size={14} />} label="Beta Features" status="Enabled" />
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsSettingsModalOpen(false)}
+              className="w-full py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-white/90 transition-all"
+            >
+              Save Changes
+            </button>
+          </div>
+        </ModalWrapper>
+      )}
+
+      {/* Updates Modal */}
+      {isUpdatesModalOpen && (
+        <ModalWrapper title="What's New" onClose={() => setIsUpdatesModalOpen(false)}>
+          <div className="space-y-6">
+            <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+              <UpdateItem
+                title="Zinc UI Revamp"
+                desc="The workspace has been modernized with a new, minimal design system."
+                date="Today"
+                isNew
+              />
+              <UpdateItem
+                title="Custom Select Components"
+                desc="Native dropdowns replaced with accessible custom components."
+                date="Yesterday"
+              />
+              <UpdateItem
+                title="Performance Optimization"
+                desc="File tree loading speeds improved by 40% using memoization."
+                date="May 1, 2026"
+              />
+            </div>
+
+            <button
+              onClick={() => setIsUpdatesModalOpen(false)}
+              className="w-full py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-white/60 hover:text-white transition-all text-sm font-medium"
+            >
+              Dismiss
+            </button>
+          </div>
+        </ModalWrapper>
+      )}
+    </>
+  );
+}
+
+function ModalWrapper({ children, title, onClose }) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-[#121214] border border-white/[0.08] rounded-3xl w-full max-w-sm p-8 shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between mb-8">
+          <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
+          <button onClick={onClose} className="p-1 text-white/20 hover:text-white transition-colors">
+            <Plus size={20} className="rotate-45" />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function SettingsItem({ icon, label, status }) {
+  return (
+    <div className="flex items-center justify-between p-3 rounded-xl hover:bg-white/[0.03] transition-all cursor-pointer group border border-transparent hover:border-white/[0.06]">
+      <div className="flex items-center gap-3">
+        <div className="p-1.5 rounded-lg bg-white/[0.04] text-white/30 group-hover:text-white transition-colors">
+          {icon}
+        </div>
+        <span className="text-xs text-white/60 group-hover:text-white transition-colors">{label}</span>
+      </div>
+      {status && <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-500/80">{status}</span>}
+    </div>
+  );
+}
+
+function UpdateItem({ title, desc, date, isNew }) {
+  return (
+    <div className="space-y-2 p-3 rounded-xl bg-white/[0.01] border border-white/[0.04] hover:border-white/[0.08] transition-all">
+      <div className="flex items-start justify-between">
+        <h5 className="text-xs font-semibold text-white flex items-center gap-2">
+          {title}
+          {isNew && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />}
+        </h5>
+        <span className="text-[10px] text-white/20">{date}</span>
+      </div>
+      <p className="text-[11px] text-white/40 leading-relaxed">{desc}</p>
     </div>
   );
 }

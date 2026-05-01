@@ -1,66 +1,62 @@
 'use client';
 import React from 'react';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Trash2, Info, AlertTriangle } from 'lucide-react';
 
-/**
- * A reusable confirmation modal with premium styling
- * @param {Object} props
- * @param {boolean} props.isOpen - Whether the modal is visible
- * @param {Function} props.onClose - Function to call when user cancels or clicks away
- * @param {Function} props.onConfirm - Function to call when user confirms
- * @param {string} props.title - Modal title (defaults to "localhost:3000 says")
- * @param {string} props.message - Warning message
- * @param {string} props.confirmText - Text for confirm button
- * @param {string} props.cancelText - Text for cancel button
- * @param {string} props.type - 'danger' | 'info' | 'warning'
- */
 export default function ConfirmationModal({ 
   isOpen, 
   onClose, 
   onConfirm, 
-  title = "localhost:3000 says",
+  title = "Confirm Action",
   message = "Are you sure you want to proceed?",
-  confirmText = "OK",
+  confirmText = "Confirm",
   cancelText = "Cancel",
-  type = "danger"
+  type = "danger" // 'danger' | 'info' | 'warning'
 }) {
   const [isConfirming, setIsConfirming] = React.useState(false);
 
   if (!isOpen) return null;
 
+  const getIcon = () => {
+    switch (type) {
+      case 'danger': return <Trash2 size={24} />;
+      case 'warning': return <AlertTriangle size={24} />;
+      default: return <Info size={24} />;
+    }
+  };
+
+  const getTheme = () => {
+    switch (type) {
+      case 'danger': return 'text-red-400 bg-red-400/[0.06] border-red-400/20';
+      case 'warning': return 'text-amber-400 bg-amber-400/[0.06] border-amber-400/20';
+      default: return 'text-white bg-white/[0.06] border-white/20';
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 sm:p-4">
-      {/* Backdrop with enhanced blur */}
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      {/* Backdrop */}
       <div 
-        className={`absolute inset-0 bg-black/40 backdrop-blur-md transition-opacity duration-300 ${!isConfirming ? 'cursor-pointer' : ''}`} 
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300" 
         onClick={!isConfirming ? onClose : undefined}
       />
       
-      {/* Modal Container: Simple, Clean, Attractive */}
-      <div className="relative bg-[#111111]/80 backdrop-blur-2xl border border-white/10 rounded-[2rem] w-full max-w-sm p-8 shadow-[0_32px_80px_-20px_rgba(0,0,0,0.6)] animate-modal-in overflow-hidden">
+      {/* Modal */}
+      <div className="relative bg-[#0c0c0e] border border-white/[0.08] rounded-3xl w-full max-w-sm p-8 shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
         
-        {/* Subtle Top Glow */}
-        <div className={`absolute -top-24 left-1/2 -translate-x-1/2 w-48 h-48 blur-3xl rounded-full opacity-20 pointer-events-none ${
-          type === 'danger' ? 'bg-red-500' : 'bg-[#8a2be2]'
-        }`} />
-
         <div className="flex flex-col items-center text-center relative z-10">
-          {/* Circular Icon with Glow */}
-          <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-inner ${
-            type === 'danger' ? 'bg-red-500/10 text-red-400' : 'bg-[#8a2be2]/10 text-[#8a2be2]'
-          }`}>
-            <AlertCircle size={40} strokeWidth={1.5} />
+          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 border ${getTheme()}`}>
+            {getIcon()}
           </div>
           
-          <h3 className="text-2xl font-bold tracking-tight text-white mb-2">
-            {title === 'localhost:3000 says' ? 'Confirm Action' : title}
+          <h3 className="text-xl font-semibold tracking-tight text-white mb-2">
+            {String(title)}
           </h3>
           
-          <p className="text-white/40 text-[15px] font-medium leading-relaxed mb-8 px-2">
-            {message}
+          <p className="text-white/40 text-sm font-medium leading-relaxed mb-8 px-4">
+            {String(message)}
           </p>
           
-          <div className="flex flex-col gap-3 w-full">
+          <div className="flex flex-col gap-2 w-full">
             <button 
               disabled={isConfirming}
               onClick={async () => {
@@ -74,21 +70,21 @@ export default function ConfirmationModal({
                   onClose();
                 }
               }}
-              className={`w-full py-4 rounded-2xl font-bold transition-all active:scale-[0.98] flex items-center justify-center min-h-[56px] cursor-pointer ${
+              className={`w-full py-3 rounded-xl font-semibold text-sm transition-all active:scale-[0.98] flex items-center justify-center min-h-[44px] cursor-pointer ${
                 type === 'danger' 
-                ? 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/20' 
-                : 'bg-[#8a2be2] hover:bg-[#7a1bd2] text-white shadow-lg shadow-[#8a2be2]/20'
+                ? 'bg-red-500 hover:bg-red-600 text-white' 
+                : 'bg-white text-black hover:bg-white/90'
               } disabled:opacity-50 disabled:cursor-wait`}
             >
               {isConfirming ? (
-                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />
               ) : confirmText}
             </button>
 
             <button 
               disabled={isConfirming}
               onClick={onClose}
-              className="w-full py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white/60 font-medium transition-all active:scale-[0.98] cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              className="w-full py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] text-white/60 hover:text-white text-sm font-medium transition-all active:scale-[0.98] cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
             >
               {cancelText}
             </button>

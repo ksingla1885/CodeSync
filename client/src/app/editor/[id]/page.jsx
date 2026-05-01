@@ -22,7 +22,10 @@ import {
   Mail,
   ArrowLeft,
   X,
-  Code2
+  Code2,
+  ChevronRight,
+  Monitor,
+  Loader2
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -41,15 +44,14 @@ export default function EditorPage() {
   const [isRunning, setIsRunning] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
   const [copied, setCopied] = useState(false);
-  const [currentUser, setCurrentUser] = useState({ name: 'User', email: '', color: '#8a2be2' });
+  const [currentUser, setCurrentUser] = useState({ name: 'User', email: '', color: '#3b82f6' });
   const [project, setProject] = useState(null);
-  const [openFileIds, setOpenFileIds] = useState(['1']); // Track which files are open as tabs
+  const [openFileIds, setOpenFileIds] = useState(['1']);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
       const parsedUser = JSON.parse(savedUser);
-      // Normalize id/_id
       if (parsedUser.id && !parsedUser._id) parsedUser._id = parsedUser.id;
       setCurrentUser(prev => ({ ...prev, ...parsedUser }));
     } else {
@@ -63,17 +65,17 @@ export default function EditorPage() {
         const res = await fetch(`${SERVER_URL}/api/projects/${projectId}`);
         const data = await res.json();
         if (res.ok) setProject(data);
-      } catch (err) {
-        console.error('Failed to fetch project:', err);
-      }
+      } catch (err) {}
     };
     if (projectId) fetchProject();
   }, [projectId]);
+
   // Modal States
   const [isNewFileModalOpen, setIsNewFileModalOpen] = useState(false);
   const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isCollaboratorModalOpen, setIsCollaboratorModalOpen] = useState(false);
+  const [isProjectSettingsModalOpen, setIsProjectSettingsModalOpen] = useState(false);
   
   const [newFileName, setNewFileName] = useState('');
   const [newFolderName, setNewFolderName] = useState('');
@@ -83,12 +85,9 @@ export default function EditorPage() {
   const [collabCode, setCollabCode] = useState('');
   const [collabStatus, setCollabStatus] = useState({ type: '', message: '' });
   const [collabLoading, setCollabLoading] = useState(false);
-  const [collabStep, setCollabStep] = useState(1); // 1: Email, 2: Code
+  const [collabStep, setCollabStep] = useState(1);
   const [confirmationModal, setConfirmationModal] = useState({ 
-    isOpen: false, 
-    title: '', 
-    message: '', 
-    onConfirm: () => {} 
+    isOpen: false, title: '', message: '', onConfirm: () => {} 
   });
 
   const { 
@@ -130,282 +129,225 @@ export default function EditorPage() {
 
   const handleRequestCollabCode = async () => {
     if (!collabEmail) return;
-
-    // Check if user is already a collaborator or the owner
     const isOwner = project?.owner?.email === collabEmail;
     const isAlreadyCollab = project?.collaborators?.some(c => c.email === collabEmail);
-
-    if (isOwner) {
-      setCollabStatus({ type: 'error', message: "That's you! You're already the owner." });
+    if (isOwner || isAlreadyCollab) {
+      setCollabStatus({ type: 'error', message: isOwner ? "You are the owner." : "Already a collaborator." });
       return;
     }
-    if (isAlreadyCollab) {
-      setCollabStatus({ type: 'error', message: 'This user is already a collaborator on this project.' });
-      return;
-    }
-
     setCollabLoading(true);
-    setCollabStatus({ type: 'loading', message: 'Sending verification code...' });
     try {
       const res = await fetch(`${SERVER_URL}/api/auth/request-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: collabEmail, 
-          type: 'collaboration',
-          projectName: project?.name,
-          ownerName: project?.owner?.name
-        }),
+        body: JSON.stringify({ email: collabEmail, type: 'collaboration', projectName: project?.name, ownerName: project?.owner?.name }),
       });
-      const data = await res.json();
-      if (res.ok) {
-        setCollabStatus({ type: 'success', message: 'Verification code sent!' });
-        setCollabStep(2);
-      } else {
-        setCollabStatus({ type: 'error', message: data.error || 'Failed to send code' });
-      }
-    } catch (err) {
-      setCollabStatus({ type: 'error', message: 'Connection failed' });
-    } finally {
-      setCollabLoading(false);
-    }
+      if (res.ok) { setCollabStatus({ type: 'success', message: 'Code sent!' }); setCollabStep(2); }
+      else { const data = await res.json(); setCollabStatus({ type: 'error', message: data.error || 'Failed' }); }
+    } catch (err) {} finally { setCollabLoading(false); }
   };
 
   const handleAddCollaborator = async (e) => {
     e.preventDefault();
     if (!collabEmail || !collabCode) return;
     setCollabLoading(true);
-    setCollabStatus({ type: 'loading', message: 'Adding...' });
     try {
       const res = await fetch(`${SERVER_URL}/api/projects/${projectId}/collaborators`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: collabEmail, code: collabCode }),
       });
-      const data = await res.json();
       if (res.ok) {
-        setCollabStatus({ type: 'success', message: 'Added successfully!' });
-        setCollabEmail('');
-        setCollabCode('');
-        setCollabStep(1);
-        setTimeout(() => setCollabStatus({ type: '', message: '' }), 3000);
-        // Optionally refetch project to update collaborator list
-        const updatedProjectRes = await fetch(`${SERVER_URL}/api/projects/${projectId}`);
-        const updatedProjectData = await updatedProjectRes.json();
-        if (updatedProjectRes.ok) setProject(updatedProjectData);
-      } else {
-        setCollabStatus({ type: 'error', message: data.error || 'Failed to add' });
-      }
-    } finally {
-      setCollabLoading(false);
-    }
+        setCollabStatus({ type: 'success', message: 'Added!' });
+        setCollabEmail(''); setCollabCode(''); setCollabStep(1);
+        const updated = await (await fetch(`${SERVER_URL}/api/projects/${projectId}`)).json();
+        setProject(updated);
+      } else { const data = await res.json(); setCollabStatus({ type: 'error', message: data.error || 'Failed' }); }
+    } finally { setCollabLoading(false); }
   };
 
   const handleRemoveCollaborator = async (collaboratorId) => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const userId = user._id || user.id; // Requester ID (handle legacy 'id' field)
-
     setConfirmationModal({
       isOpen: true,
-      title: 'Remove Collaborator',
-      message: 'Are you sure you want to remove this collaborator from the project? They will lose access immediately.',
+      title: 'Remove Member',
+      message: 'Remove this collaborator? They will lose access immediately.',
       onConfirm: async () => {
         try {
-          const res = await fetch(`${SERVER_URL}/api/projects/${projectId}/collaborators/${collaboratorId}?userId=${userId}`, {
-            method: 'DELETE',
-          });
-          const data = await res.json();
+          const res = await fetch(`${SERVER_URL}/api/projects/${projectId}/collaborators/${collaboratorId}?userId=${currentUser?._id}`, { method: 'DELETE' });
           if (res.ok) {
-            setCollabStatus({ type: 'success', message: 'Collaborator removed' });
-            // Refetch project
-            const updatedProjectRes = await fetch(`${SERVER_URL}/api/projects/${projectId}`);
-            const updatedProjectData = await updatedProjectRes.json();
-            if (updatedProjectRes.ok) setProject(updatedProjectData);
-            setTimeout(() => setCollabStatus({ type: '', message: '' }), 3000);
-          } else {
-            setCollabStatus({ type: 'error', message: data.error || 'Failed to remove' });
+            const updated = await (await fetch(`${SERVER_URL}/api/projects/${projectId}`)).json();
+            setProject(updated);
           }
-        } catch (err) {
-          setCollabStatus({ type: 'error', message: 'Connection error' });
-        }
-        setConfirmationModal(prev => ({ ...prev, isOpen: false }));
+        } catch (err) {}
       }
     });
   };
 
-
   const handleAddFile = (e) => {
     e.preventDefault();
     if (!newFileName.trim()) return;
-    
     const file = {
       id: Math.random().toString(36).substr(2, 9),
-      name: newFileName,
-      parentId: activeParentId,
-      language: newFileName.endsWith('.js') ? 'javascript' : 
-                newFileName.endsWith('.css') ? 'css' : 
-                newFileName.endsWith('.html') ? 'html' : 'plaintext',
+      name: newFileName, 
+      parentId: String(activeParentId),
+      language: newFileName.endsWith('.js') ? 'javascript' : newFileName.endsWith('.css') ? 'css' : newFileName.endsWith('.html') ? 'html' : 'plaintext',
       content: '// New file'
     };
-    
-    addFile(file);
-    setIsNewFileModalOpen(false);
-    setNewFileName('');
-    setSelectedFileId(file.id);
+    addFile(file); setIsNewFileModalOpen(false); setNewFileName(''); setSelectedFileId(file.id);
     setOpenFileIds(prev => [...new Set([...prev, file.id])]);
   };
 
   const handleCreateFolder = (e) => {
     e.preventDefault();
     if (!newFolderName.trim()) return;
-
-    const folder = {
-      id: Math.random().toString(36).substr(2, 9),
-      name: newFolderName,
-      isFolder: true,
-      parentId: activeParentId,
-      content: ''
+    const folder = { 
+      id: Math.random().toString(36).substr(2, 9), 
+      name: newFolderName, 
+      isFolder: true, 
+      parentId: String(activeParentId), 
+      content: '' 
     };
-
-    addFile(folder);
-    setIsNewFolderModalOpen(false);
-    setNewFolderName('');
+    addFile(folder); setIsNewFolderModalOpen(false); setNewFolderName('');
   };
 
   const handleConfirmDelete = () => {
     if (fileToDelete) {
-      deleteFile(fileToDelete.id);
-      setIsDeleteModalOpen(false);
-      setFileToDelete(null);
-      
-      // Also close the tab
+      deleteFile(fileToDelete.id); setIsDeleteModalOpen(false); setFileToDelete(null);
       setOpenFileIds(prev => prev.filter(id => id !== fileToDelete.id));
-
-      if (selectedFileId === fileToDelete.id) {
-        setSelectedFileId('1'); // Fallback to main
-      }
+      if (selectedFileId === fileToDelete.id) setSelectedFileId('1');
     }
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-[#0d0d0d] text-white overflow-hidden select-none">
-      {/* Navbar */}
-      <nav className="h-14 border-b border-white/5 flex items-center justify-between px-5 bg-[#141414] z-10 flex-shrink-0">
+    <div className="flex flex-col h-screen w-screen bg-[#09090b] text-[#fafafa] overflow-hidden select-none font-sans">
+      {/* Top Navbar */}
+      <nav className="h-14 border-b border-white/[0.06] flex items-center justify-between px-4 bg-[#09090b] z-30 shrink-0">
         <div className="flex items-center gap-4">
-          <Link href="/dashboard" className="p-2 hover:bg-white/5 rounded-lg text-white/40 hover:text-white transition-colors">
+          <Link href="/dashboard" className="p-2 hover:bg-white/[0.04] rounded-lg text-white/40 hover:text-white transition-all">
             <ArrowLeft size={16} />
           </Link>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-[#8a2be2] flex items-center justify-center shadow-lg shadow-[#8a2be2]/30">
-              <Layout size={15} />
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="font-bold text-[15px]">CodeSync</span>
-              <span className="text-white/20 mx-1">/</span>
-              <span className="text-white/50 text-sm font-bold truncate max-w-[120px]">{project?.name || 'Loading...'}</span>
-            </div>
+             <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-white/40">Projects</span>
+                <ChevronRight size={12} className="text-white/20" />
+                <span className="font-medium">{String(project?.name || 'Loading...')}</span>
+             </div>
+             {connected && (
+               <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-bold text-emerald-400 tracking-wider">
+                  <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                  LIVE
+               </div>
+             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold ${connected ? 'text-green-400' : 'text-yellow-400'}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`} />
-            {connected ? 'LIVE' : 'SYNCING'}
+        <div className="flex items-center gap-2">
+          <div className="flex -space-x-1.5 mr-2">
+             {project?.collaborators?.slice(0, 3).map((c, i) => (
+                <div key={i} className="w-6 h-6 rounded-full border-2 border-[#09090b] bg-white/10 flex items-center justify-center text-[8px] font-bold uppercase" title={c.email}>
+                   {c.name?.[0] || c.email?.[0]}
+                </div>
+             ))}
+             {project?.collaborators?.length > 3 && (
+                <div className="w-6 h-6 rounded-full border-2 border-[#09090b] bg-white/5 flex items-center justify-center text-[8px] font-bold text-white/40">
+                   +{project.collaborators.length - 3}
+                </div>
+             )}
           </div>
-
-          <div className="h-4 w-px bg-white/10 mx-1" />
 
           <button
             onClick={() => setIsCollaboratorModalOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-xs text-white/70 hover:text-white"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-white/40 hover:text-white hover:bg-white/[0.04] transition-all"
           >
             <Users size={14} />
-            Collaborators
+            Share
           </button>
+
+          <div className="w-px h-4 bg-white/[0.06] mx-1" />
 
           <button
             onClick={handleRunCode}
-            className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-[#8a2be2] hover:bg-[#7a1bd2] transition-all font-bold text-xs"
+            disabled={isRunning}
+            className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-white text-black hover:bg-white/90 transition-all font-semibold text-xs active:scale-95 disabled:opacity-50"
           >
-            <Play size={10} fill="currentColor" />
+            {isRunning ? <Loader2 size={12} className="animate-spin" /> : <Play size={10} fill="currentColor" />}
             Run
           </button>
 
           <button
-            onClick={() => setShowChat((v) => !v)}
-            className={`p-2 rounded-lg transition-colors ${showChat ? 'text-[#8a2be2] bg-[#8a2be2]/10' : 'text-white/40 hover:text-white'}`}
+            onClick={() => setIsProjectSettingsModalOpen(true)}
+            className="p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/[0.04] transition-all"
           >
-            <MessageSquare size={17} />
+            <Settings size={16} />
+          </button>
+
+          <button
+            onClick={() => setShowChat(v => !v)}
+            className={`p-2 rounded-lg transition-all ${showChat ? 'text-white bg-white/[0.08]' : 'text-white/40 hover:text-white hover:bg-white/[0.04]'}`}
+          >
+            <MessageSquare size={16} />
           </button>
         </div>
       </nav>
 
-      {/* Body */}
       <div className="flex flex-1 overflow-hidden">
-        <FileExplorer
-          files={files}
-          selectedFile={selectedFile}
-          onFileSelect={(f) => {
-            setSelectedFileId(f.id);
-            if (!openFileIds.includes(f.id)) {
-              setOpenFileIds(prev => [...prev, f.id]);
-            }
-          }}
-          onAddFile={(parentId) => { setActiveParentId(parentId); setIsNewFileModalOpen(true); }}
-          onAddFolder={(parentId) => { setActiveParentId(parentId); setIsNewFolderModalOpen(true); }}
-          onDeleteFile={(id) => { 
-            setFileToDelete(files.find(f => f.id === id)); 
-            setIsDeleteModalOpen(true); 
-          }}
-        />
+        {/* Left Sidebar (Explorer) */}
+        <div className="w-64 border-r border-white/[0.06] bg-[#09090b] flex flex-col shrink-0">
+           <FileExplorer
+            files={files}
+            selectedFile={selectedFile}
+            onFileSelect={(f) => {
+              setSelectedFileId(f.id);
+              if (!openFileIds.includes(f.id)) setOpenFileIds(prev => [...prev, f.id]);
+            }}
+            onAddFile={(parentId) => { setActiveParentId(parentId); setIsNewFileModalOpen(true); }}
+            onAddFolder={(parentId) => { setActiveParentId(parentId); setIsNewFolderModalOpen(true); }}
+            onDeleteFile={(id) => { setFileToDelete(files.find(f => f.id === id)); setIsDeleteModalOpen(true); }}
+          />
+        </div>
 
-        <main className="flex-1 flex flex-col overflow-hidden relative">
-          {/* Tabs */}
-          <div className="h-10 bg-[#141414]/50 border-b border-white/5 flex items-end flex-shrink-0 overflow-x-auto no-scrollbar">
+        {/* Main Editor Area */}
+        <main className="flex-1 flex flex-col min-w-0 bg-[#09090b]">
+          {/* Tab Bar */}
+          <div className="h-10 border-b border-white/[0.06] flex items-center bg-[#09090b] overflow-x-auto no-scrollbar">
             {files.filter(f => openFileIds.includes(f.id) && !f.isFolder).map((file) => (
               <div
                 key={file.id}
-                className={`h-full flex items-center gap-2 text-[11px] font-medium border-r border-white/5 transition-all relative group cursor-pointer ${
-                  file.id === selectedFileId ? 'bg-[#0d0d0d] text-[#c084fc]' : 'text-white/30 hover:text-white/60 hover:bg-white/[0.02]'
-                }`}
                 onClick={() => setSelectedFileId(file.id)}
+                className={`h-full px-4 flex items-center gap-2 text-xs font-medium border-r border-white/[0.06] transition-all cursor-pointer relative group min-w-[120px] ${
+                  file.id === selectedFileId ? 'bg-white/[0.03] text-white' : 'text-white/30 hover:text-white/60 hover:bg-white/[0.01]'
+                }`}
               >
-                {file.id === selectedFileId && <span className="absolute top-0 left-0 right-0 h-[2px] bg-[#8a2be2]" />}
-                <span className="pl-5 py-2">{file.name}</span>
+                {file.id === selectedFileId && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white" />}
+                <span className="truncate flex-1">{file.name}</span>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    const newOpenIds = openFileIds.filter(id => id !== file.id);
-                    setOpenFileIds(newOpenIds);
-                    if (selectedFileId === file.id && newOpenIds.length > 0) {
-                      setSelectedFileId(newOpenIds[newOpenIds.length - 1]);
-                    }
+                    const next = openFileIds.filter(id => id !== file.id);
+                    setOpenFileIds(next);
+                    if (selectedFileId === file.id && next.length > 0) setSelectedFileId(next[next.length - 1]);
                   }}
-                  className="p-1 mx-2 rounded-md hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="p-1 rounded-md opacity-0 group-hover:opacity-100 hover:bg-white/10 transition-all"
                 >
-                  <X size={10} className="text-white/40 hover:text-red-400" />
+                  <X size={10} />
                 </button>
               </div>
             ))}
           </div>
 
-          <div className="flex-1 min-h-0 relative">
-            {openFileIds.filter(id => !files.find(f => f.id === id)?.isFolder).length > 0 ? (
+          <div className="flex-1 relative min-h-0">
+            {openFileIds.length > 0 ? (
               <CodeEditor
-                code={code}
-                ytext={ytext}
-                connected={connected}
-                language={selectedFile.language}
-                onChange={(c) => updateCode(c)}
-                cursors={cursors}
+                code={code} ytext={ytext} connected={connected} language={selectedFile.language}
+                onChange={(c) => updateCode(c)} cursors={cursors}
                 onCursorChange={(p) => updateCursor(p, currentUser)}
               />
             ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0d0d0d] text-white/5 space-y-4">
-                <div className="w-24 h-24 rounded-full border-4 border-white/5 flex items-center justify-center">
-                   <Code2 size={40} className="text-white/5" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-white/10 space-y-4">
+                <div className="p-8 rounded-full border border-dashed border-white/5">
+                   <Code2 size={48} />
                 </div>
-                <p className="text-xs font-bold uppercase tracking-widest">Select a file from the explorer to begin coding</p>
+                <p className="text-xs font-medium uppercase tracking-widest">Select a file to begin</p>
               </div>
             )}
           </div>
@@ -413,260 +355,200 @@ export default function EditorPage() {
           {showOutput && <OutputPanel output={output} isLoading={isRunning} onClose={() => setShowOutput(false)} />}
         </main>
 
-        {showChat && <ChatPanel messages={messages} inputMessage={inputMessage} setInputMessage={setInputMessage} onSend={() => { sendMessage(inputMessage, currentUser); setInputMessage(''); }} onClose={() => setShowChat(false)} />}
+        {showChat && (
+          <div className="w-80 border-l border-white/[0.06] bg-[#09090b] flex flex-col shrink-0">
+            <ChatPanel messages={messages} inputMessage={inputMessage} setInputMessage={setInputMessage} onSend={() => { sendMessage(inputMessage, currentUser); setInputMessage(''); }} onClose={() => setShowChat(false)} />
+          </div>
+        )}
       </div>
 
-      {/* Collaborator Modal */}
-      <Modal
-        isOpen={isCollaboratorModalOpen}
-        onClose={() => setIsCollaboratorModalOpen(false)}
-        title="Project Collaborators"
-        footer={<button onClick={() => setIsCollaboratorModalOpen(false)} className="px-5 py-2 rounded-xl bg-white/5 text-sm font-bold">Done</button>}
-      >
-        <div className="space-y-8">
-            {collabStep === 1 ? (
-               <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-white/30 ml-1">Collaborator Email</label>
-                    <div className="relative group">
-                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-white/10 group-focus-within:text-[#8a2be2] transition-colors" size={14} />
-                       <input 
-                          type="email" 
-                          value={collabEmail}
-                          onChange={(e) => setCollabEmail(e.target.value)}
-                          placeholder="user@example.com"
-                          className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:border-[#8a2be2]/50 transition-all shadow-inner"
-                       />
-                    </div>
-                  </div>
-
-                  <button 
-                    onClick={handleRequestCollabCode}
-                    disabled={collabLoading || !collabEmail}
-                    className="w-full py-4 bg-[#8a2be2] hover:bg-[#7a1bd2] rounded-xl text-sm font-bold shadow-lg shadow-[#8a2be2]/20 transition-all disabled:opacity-50"
-                  >
-                    {collabLoading ? 'Requesting Code...' : 'Send Verification Code'}
-                  </button>
-               </div>
-            ) : (
-               <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500">
-                  <div className="p-3 bg-white/5 border border-dashed border-white/10 rounded-xl text-center">
-                     <p className="text-[10px] text-white/30 uppercase tracking-widest mb-1">Code sent to</p>
-                     <p className="text-sm font-bold text-[#c084fc]">{collabEmail}</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-white/30 text-center block">Enter 6-Digit Code</label>
-                    <input 
-                      required
-                      type="text" 
-                      maxLength={6}
-                      value={collabCode}
-                      onChange={(e) => setCollabCode(e.target.value)}
-                      placeholder="••••••"
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 text-center text-4xl font-black tracking-[0.5em] focus:outline-none focus:border-[#8a2be2]/50 transition-all text-[#8a2be2]"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-3">
-                    <button 
-                      onClick={handleAddCollaborator}
-                      className="w-full py-4 bg-[#8a2be2] hover:bg-[#7a1bd2] rounded-xl text-sm font-bold shadow-lg shadow-[#8a2be2]/20 transition-all disabled:opacity-50" 
-                      disabled={collabLoading || collabCode.length !== 6}
-                    >
-                       {collabLoading ? 'Verifying...' : 'Verify & Add'}
-                    </button>
-                    <button 
-                      onClick={() => { setCollabStep(1); setCollabCode(''); }}
-                      className="text-[10px] font-bold text-white/20 uppercase tracking-widest hover:text-white transition-colors"
-                    >
-                      ← Back
-                    </button>
-                  </div>
-               </div>
-            )}
-
-            {collabStatus.message && (
-              <p className={`text-[11px] font-medium flex items-center justify-center gap-1.5 mt-2 ${collabStatus.type === 'success' ? 'text-green-400' : collabStatus.type === 'error' ? 'text-red-400' : 'text-white/40'}`}>
-                {collabStatus.message}
-              </p>
-            )}
-        </div>
-
-        <div className="space-y-3">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-white/30">Current Team</label>
-               <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
-                  {/* Project Owner */}
-                  {project?.owner && (
-                    <div className="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-xl group hover:bg-white/[0.08] transition-all">
-                       <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-[#8a2be2] flex items-center justify-center text-xs font-black">
-                             {project.owner.name ? project.owner.name[0].toUpperCase() : 'O'}
-                          </div>
-                          <div>
-                             <p className="text-sm font-bold">
-                                {project.owner.name} <span className="text-[10px] font-normal text-white/30 ml-1 bg-white/10 px-1.5 py-0.5 rounded uppercase tracking-tighter">Owner</span>
-                             </p>
-                             <p className="text-[11px] text-white/30">{project.owner.email}</p>
-                          </div>
-                       </div>
-                    </div>
-                  )}
-
-                  {/* Collaborators */}
-                  {project?.collaborators && Array.isArray(project.collaborators) && project.collaborators.map((collab, index) => {
-                    // Check if current user is the project owner
-                    const ownerId = project.owner?._id || project.owner;
-                    const isOwner = currentUser?._id && ownerId && (currentUser._id.toString() === ownerId.toString());
-
-                    return (
-                      <div key={index} className="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-xl group hover:bg-white/[0.08] transition-all">
-                        <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-xs font-black">
-                              {collab.name ? collab.name[0].toUpperCase() : 'C'}
-                            </div>
-                            <div>
-                              <p className="text-sm font-bold">{collab.name}</p>
-                              <p className="text-[11px] text-white/30">{collab.email}</p>
-                            </div>
-                        </div>
-                        {isOwner && (
-                          <button 
-                            onClick={() => handleRemoveCollaborator(collab._id)}
-                            className="p-2 text-white/10 hover:text-red-400 opacity-60 group-hover:opacity-100 transition-all cursor-pointer"
-                            title="Remove Collaborator"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-               </div>
-            </div>
-      </Modal>
-      
-      {/* New File Modal */}
-      <Modal
-        isOpen={isNewFileModalOpen}
-        onClose={() => setIsNewFileModalOpen(false)}
-        title="Create New File"
-      >
-        <form onSubmit={handleAddFile} className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-white/30 ml-1">File Name</label>
-            <input 
-              autoFocus
-              required
-              type="text" 
-              value={newFileName}
-              onChange={(e) => setNewFileName(e.target.value)}
-              placeholder="e.g. styles.css"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#8a2be2]/50 transition-all font-mono text-sm"
-            />
-          </div>
-          <div className="flex gap-3 pt-2">
-            <button 
-              type="button"
-              onClick={() => setIsNewFileModalOpen(false)}
-              className="flex-1 px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-sm font-bold transition-all"
-            >
-              Cancel
-            </button>
-            <button 
-              type="submit"
-              className="flex-1 px-4 py-3 rounded-xl bg-[#8a2be2] hover:bg-[#7a1bd2] text-sm font-bold shadow-lg shadow-[#8a2be2]/20 transition-all"
-            >
-              Create
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* New Folder Modal */}
-      <Modal
-        isOpen={isNewFolderModalOpen}
-        onClose={() => setIsNewFolderModalOpen(false)}
-        title="Create New Folder"
-      >
-        <form onSubmit={handleCreateFolder} className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-white/30 ml-1">Folder Name</label>
-            <input 
-              autoFocus
-              required
-              type="text" 
-              value={newFolderName}
-              onChange={(e) => setNewFolderName(e.target.value)}
-              placeholder="e.g. components"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#8a2be2]/50 transition-all font-mono text-sm"
-            />
-          </div>
-          <div className="flex gap-3 pt-2">
-            <button 
-              type="button"
-              onClick={() => setIsNewFolderModalOpen(false)}
-              className="flex-1 px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-sm font-bold transition-all"
-            >
-              Cancel
-            </button>
-            <button 
-              type="submit"
-              className="flex-1 px-4 py-3 rounded-xl bg-[#8a2be2] hover:bg-[#7a1bd2] text-sm font-bold shadow-lg shadow-[#8a2be2]/20 transition-all"
-            >
-              Create
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Delete Confirmation Modal */}
-      <Modal
-        isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
-        title="Delete File"
-      >
-        <div className="space-y-6">
-          <div className="flex items-center gap-4 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl">
-            <Trash2 className="text-red-400" size={24} />
-            <p className="text-sm text-red-200/70 leading-relaxed">
-              Are you sure you want to delete <span className="font-bold text-red-200">"{fileToDelete?.name}"</span>? This action cannot be undone.
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <button 
-              onClick={() => setIsDeleteModalOpen(false)}
-              className="flex-1 px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-sm font-bold transition-all"
-            >
-              Cancel
-            </button>
-            <button 
-              onClick={handleConfirmDelete}
-              className="flex-1 px-4 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-sm font-bold shadow-lg shadow-red-500/20 transition-all"
-            >
-              Delete File
-            </button>
-          </div>
-        </div>
-      </Modal>
-      {/* Footer */}
-      <footer className="h-6 bg-[#8a2be2] px-4 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-[#141414] flex-shrink-0">
+      {/* Footer Status Bar */}
+      <footer className="h-6 border-t border-white/[0.06] bg-[#09090b] px-4 flex items-center justify-between text-[10px] font-medium text-white/30 shrink-0">
         <div className="flex items-center gap-4">
-          <span>● {connected ? 'Connected' : 'Reconnecting'}</span>
-          <span className="opacity-50">Branch: main</span>
+          <div className="flex items-center gap-1.5">
+             <span className={`w-1 h-1 rounded-full ${connected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+             <span>{connected ? 'Ready' : 'Connecting...'}</span>
+          </div>
+          <span className="flex items-center gap-1"><Monitor size={10} /> main</span>
         </div>
         <div className="flex items-center gap-4">
           <span>UTF-8</span>
-          <span>{selectedFile.language}</span>
+          <span className="text-white/50">{selectedFile.language}</span>
         </div>
       </footer>
+
+      {/* Modals Container */}
+      <Modals 
+        isNewFileModalOpen={isNewFileModalOpen} setIsNewFileModalOpen={setIsNewFileModalOpen}
+        isNewFolderModalOpen={isNewFolderModalOpen} setIsNewFolderModalOpen={setIsNewFolderModalOpen}
+        isDeleteModalOpen={isDeleteModalOpen} setIsDeleteModalOpen={setIsDeleteModalOpen}
+        isCollaboratorModalOpen={isCollaboratorModalOpen} setIsCollaboratorModalOpen={setIsCollaboratorModalOpen}
+        isProjectSettingsModalOpen={isProjectSettingsModalOpen} setIsProjectSettingsModalOpen={setIsProjectSettingsModalOpen}
+        newFileName={newFileName} setNewFileName={setNewFileName} handleAddFile={handleAddFile}
+        newFolderName={newFolderName} setNewFolderName={setNewFolderName} handleCreateFolder={handleCreateFolder}
+        fileToDelete={fileToDelete} handleConfirmDelete={handleConfirmDelete}
+        collabEmail={collabEmail} setCollabEmail={setCollabEmail}
+        collabCode={collabCode} setCollabCode={setCollabCode}
+        collabStatus={collabStatus} setCollabStatus={setCollabStatus}
+        collabLoading={collabLoading} collabStep={collabStep} setCollabStep={setCollabStep}
+        handleRequestCollabCode={handleRequestCollabCode} handleAddCollaborator={handleAddCollaborator}
+        project={project} currentUser={currentUser} handleRemoveCollaborator={handleRemoveCollaborator}
+      />
+
       <ConfirmationModal 
-        isOpen={confirmationModal.isOpen}
-        title={confirmationModal.title}
-        message={confirmationModal.message}
+        isOpen={confirmationModal.isOpen} title={confirmationModal.title} message={confirmationModal.message}
         onClose={() => setConfirmationModal(prev => ({ ...prev, isOpen: false }))}
         onConfirm={confirmationModal.onConfirm}
       />
     </div>
   );
 }
+
+function Modals({ 
+  isNewFileModalOpen, setIsNewFileModalOpen,
+  isNewFolderModalOpen, setIsNewFolderModalOpen,
+  isDeleteModalOpen, setIsDeleteModalOpen,
+  isCollaboratorModalOpen, setIsCollaboratorModalOpen,
+  isProjectSettingsModalOpen, setIsProjectSettingsModalOpen,
+  newFileName, setNewFileName, handleAddFile,
+  newFolderName, setNewFolderName, handleCreateFolder,
+  fileToDelete, handleConfirmDelete,
+  collabEmail, setCollabEmail,
+  collabCode, setCollabCode,
+  collabStatus, setCollabStatus,
+  collabLoading, collabStep, setCollabStep,
+  handleRequestCollabCode, handleAddCollaborator,
+  project, currentUser, handleRemoveCollaborator
+}) {
+  return (
+    <>
+      <Modal isOpen={isNewFileModalOpen} onClose={() => setIsNewFileModalOpen(false)} title="New File">
+        <form onSubmit={handleAddFile} className="space-y-6">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-white/30 ml-1">File Name</label>
+            <input autoFocus required type="text" placeholder="main.js" value={newFileName} onChange={(e) => setNewFileName(e.target.value)} className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-white/20 transition-all" />
+          </div>
+          <button type="submit" className="w-full py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-white/90 transition-all">Create File</button>
+        </form>
+      </Modal>
+
+      <Modal isOpen={isNewFolderModalOpen} onClose={() => setIsNewFolderModalOpen(false)} title="New Folder">
+        <form onSubmit={handleCreateFolder} className="space-y-6">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-white/30 ml-1">Folder Name</label>
+            <input autoFocus required type="text" placeholder="components" value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-white/20 transition-all" />
+          </div>
+          <button type="submit" className="w-full py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-white/90 transition-all">Create Folder</button>
+        </form>
+      </Modal>
+
+      <Modal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} title="Delete">
+        <div className="space-y-6">
+          <p className="text-sm text-white/40">Are you sure you want to delete <span className="text-white font-medium">{fileToDelete?.name}</span>? This is permanent.</p>
+          <div className="flex gap-2">
+            <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 py-3 rounded-xl bg-white/[0.04] text-white/60 text-sm font-medium hover:bg-white/[0.08] transition-all">Cancel</button>
+            <button onClick={handleConfirmDelete} className="flex-1 py-3 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-all">Delete</button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={isCollaboratorModalOpen} onClose={() => setIsCollaboratorModalOpen(false)} title="Team Members">
+        <div className="space-y-8">
+           <div className="space-y-3">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/30">Invite</label>
+              {collabStep === 1 ? (
+                <div className="flex gap-2">
+                  <input type="email" placeholder="Email..." value={collabEmail} onChange={(e) => setCollabEmail(e.target.value)} className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-white/20 transition-all" />
+                  <button onClick={handleRequestCollabCode} disabled={collabLoading || !collabEmail} className="px-4 py-2 bg-white text-black rounded-xl text-xs font-bold hover:bg-white/90 transition-all disabled:opacity-30">Send</button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <input type="text" maxLength={6} placeholder="000000" value={collabCode} onChange={(e) => setCollabCode(e.target.value)} className="w-full bg-transparent border-b border-white/20 text-center text-2xl font-bold py-2 focus:border-white transition-all" />
+                  <button onClick={handleAddCollaborator} className="w-full py-2 bg-white text-black rounded-xl text-xs font-bold hover:bg-white/90">Verify & Add</button>
+                </div>
+              )}
+           </div>
+
+           <div className="space-y-3">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/30">Current Team</label>
+              <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+                <TeamMember user={project?.owner} role="Owner" />
+                {project?.collaborators?.map((c, i) => (
+                  <TeamMember key={i} user={c} role="Editor" onRemove={() => handleRemoveCollaborator(c._id)} showRemove={project?.owner?._id === currentUser?._id} />
+                ))}
+              </div>
+           </div>
+        </div>
+      </Modal>
+      
+      {/* Project Settings Modal */}
+      <Modal isOpen={isProjectSettingsModalOpen} onClose={() => setIsProjectSettingsModalOpen(false)} title="Project Settings">
+        <div className="space-y-8">
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/30 ml-1">Project Name</label>
+              <input 
+                type="text" 
+                defaultValue={project?.name} 
+                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-white/20 transition-all text-white/60 cursor-not-allowed" 
+                disabled 
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/30 ml-1">Environment</label>
+              <div className="flex items-center gap-3 px-4 py-3 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm text-white/60">
+                <Monitor size={14} />
+                Node.js v18.x (Auto-detected)
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-white/[0.06] space-y-4">
+            <h4 className="text-[10px] font-bold uppercase tracking-widest text-white/20">Collaborator Access</h4>
+            <button 
+              onClick={() => { setIsProjectSettingsModalOpen(false); setIsCollaboratorModalOpen(true); }}
+              className="w-full flex items-center justify-between p-4 bg-white/[0.02] border border-white/[0.06] rounded-xl hover:bg-white/[0.04] transition-all group"
+            >
+              <div className="flex items-center gap-3 text-sm font-medium">
+                <Users size={16} className="text-white/40 group-hover:text-white" />
+                Manage Team
+              </div>
+              <ChevronRight size={14} className="text-white/20" />
+            </button>
+          </div>
+
+          <div className="pt-6">
+             <button 
+              onClick={() => setIsProjectSettingsModalOpen(false)}
+              className="w-full py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-white/90 transition-all active:scale-95"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </>
+  );
+}
+
+function TeamMember({ user, role, onRemove, showRemove }) {
+  if (!user) return null;
+  return (
+    <div className="flex items-center justify-between p-2 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center text-xs font-bold uppercase">{String(user.name?.[0] || user.email?.[0] || 'U')}</div>
+        <div className="min-w-0">
+          <p className="text-xs font-semibold truncate">{String(user.name || 'User')}</p>
+          <p className="text-[10px] text-white/30 truncate">{String(user.email || '')}</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 ml-4">
+        <span className="text-[8px] font-bold uppercase tracking-widest text-white/20 border border-white/10 px-1.5 py-0.5 rounded-md">{role}</span>
+        {showRemove && onRemove && (
+          <button onClick={onRemove} className="p-1.5 text-white/10 hover:text-red-400 transition-all"><Trash2 size={14} /></button>
+        )}
+      </div>
+    </div>
+  );
+}
+

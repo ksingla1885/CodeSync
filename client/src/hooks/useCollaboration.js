@@ -37,9 +37,17 @@ const useCollaboration = (projectId, selectedFileId, initialFiles = []) => {
   const refreshFiles = useCallback((yArray) => {
     const remoteFiles = yArray.toArray();
     // Filter out duplicates by ID to prevent key collision in UI
-    const uniqueFiles = Array.from(new Map(remoteFiles.map(f => [f.id, f])).values());
+    const uniqueFiles = Array.from(new Map(remoteFiles.map(f => [String(f.id), f])).values());
     setFiles(uniqueFiles);
   }, []);
+
+  const sanitizeFile = (f) => ({
+    ...f,
+    id: String(f.id || ''),
+    name: String(f.name || 'Untitled'),
+    parentId: String(f.parentId || 'root'),
+    content: String(f.content || '')
+  });
 
   useEffect(() => {
     selectedFileIdRef.current = selectedFileId;
@@ -113,9 +121,9 @@ const useCollaboration = (projectId, selectedFileId, initialFiles = []) => {
       doc.transact(() => {
         ymap.set(selectedFileId, text);
         // Also add to fileList if not present
-        const exists = yFileList.toArray().some(f => f.id === selectedFileId);
+        const exists = yFileList.toArray().some(f => String(f.id) === String(selectedFileId));
         if (!exists) {
-          yFileList.push([currentFile]);
+          yFileList.push([sanitizeFile(currentFile)]);
         }
       });
     }
@@ -144,12 +152,13 @@ const useCollaboration = (projectId, selectedFileId, initialFiles = []) => {
     const ymap = doc.getMap('files');
     const yFileList = doc.getArray('fileList');
 
+    const cleanFile = sanitizeFile(newFile);
     const text = new Y.Text();
-    text.insert(0, newFile.content || '');
+    text.insert(0, cleanFile.content || '');
     
     doc.transact(() => {
-      ymap.set(newFile.id, text);
-      yFileList.push([newFile]);
+      ymap.set(cleanFile.id, text);
+      yFileList.push([cleanFile]);
     });
   }, []);
 

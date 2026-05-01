@@ -27,7 +27,7 @@ import {
   X
 } from 'lucide-react';
 import ConfirmationModal from '@/components/ConfirmationModal';
-import CustomSelect from '@/components/ui/custom-select'
+import CustomSelect from '@/components/UI/custom-select'
 
 const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000';
 

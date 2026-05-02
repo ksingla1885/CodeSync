@@ -16,21 +16,23 @@ export default function ConfirmationModal({
 
   if (!isOpen) return null;
 
-  const getIcon = () => {
+  const icon = React.useMemo(() => {
     switch (type) {
       case 'danger': return <Trash2 size={24} />;
       case 'warning': return <AlertTriangle size={24} />;
       default: return <Info size={24} />;
     }
-  };
+  }, [type]);
 
-  const getTheme = () => {
+  const themeClasses = React.useMemo(() => {
     switch (type) {
       case 'danger': return 'text-red-400 bg-red-400/[0.06] border-red-400/20';
       case 'warning': return 'text-amber-400 bg-amber-400/[0.06] border-amber-400/20';
       default: return 'text-white bg-white/[0.06] border-white/20';
     }
-  };
+  }, [type]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -44,16 +46,16 @@ export default function ConfirmationModal({
       <div className="relative bg-[#0c0c0e] border border-white/[0.08] rounded-3xl w-full max-w-sm p-8 shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
         
         <div className="flex flex-col items-center text-center relative z-10">
-          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 border ${getTheme()}`}>
-            {getIcon()}
+          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 border ${themeClasses}`}>
+            {icon}
           </div>
           
           <h3 className="text-xl font-semibold tracking-tight text-white mb-2">
-            {String(title)}
+            {typeof title === 'string' ? title : (title?.name || title?.label || 'Confirm')}
           </h3>
           
           <p className="text-white/40 text-sm font-medium leading-relaxed mb-8 px-4">
-            {String(message)}
+            {typeof message === 'string' ? message : (message?.name || message?.label || message?.message || 'Proceed?')}
           </p>
           
           <div className="flex flex-col gap-2 w-full">

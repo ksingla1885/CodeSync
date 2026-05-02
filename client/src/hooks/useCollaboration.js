@@ -29,7 +29,8 @@ const useCollaboration = (projectId, selectedFileId, initialFiles = []) => {
   const refreshCode = useCallback((ymap, fileId) => {
     const text = ymap.get(fileId);
     if (text) {
-      setCode(text.toString());
+      const newContent = text.toString();
+      setCode(prev => (prev === newContent ? prev : newContent));
     }
   }, []);
 
@@ -38,7 +39,15 @@ const useCollaboration = (projectId, selectedFileId, initialFiles = []) => {
     const remoteFiles = yArray.toArray();
     // Filter out duplicates by ID to prevent key collision in UI
     const uniqueFiles = Array.from(new Map(remoteFiles.map(f => [String(f.id), f])).values());
-    setFiles(uniqueFiles);
+    
+    setFiles(prev => {
+      // Shallow equality check for the array and its items
+      if (prev.length === uniqueFiles.length && 
+          prev.every((f, i) => f.id === uniqueFiles[i].id && f.name === uniqueFiles[i].name && f.parentId === uniqueFiles[i].parentId)) {
+        return prev;
+      }
+      return uniqueFiles;
+    });
   }, []);
 
   const sanitizeFile = (f) => ({
@@ -56,10 +65,14 @@ const useCollaboration = (projectId, selectedFileId, initialFiles = []) => {
   // ----- Socket + Yjs initialization -----
   useEffect(() => {
     const doc = ydoc.current;
-    const ymap = doc.getMap('files');
     const yFileList = doc.getArray('fileList');
 
-    const socket = io(SERVER_URL, { transports: ['websocket'] });
+    const socket = io(SERVER_URL, {
+      transports: ['websocket'],
+      upgrade: false,
+      reconnectionAttempts: 5,
+      timeout: 10000
+    });
     socketRef.current = socket;
 
     socket.on('connect', () => {
@@ -72,19 +85,20 @@ const useCollaboration = (projectId, selectedFileId, initialFiles = []) => {
 
     socket.on('document-init', ({ state }) => {
       Y.applyUpdate(doc, new Uint8Array(state), 'remote');
-      refreshCode(ymap, selectedFileIdRef.current);
       refreshFiles(yFileList);
     });
     
     socket.on('document-update', ({ update }) => {
-      console.log('Remote update received:', projectId);
       Y.applyUpdate(doc, new Uint8Array(update), 'remote');
-      refreshCode(ymap, selectedFileIdRef.current);
       refreshFiles(yFileList);
     });
 
     socket.on('cursor-update', ({ position, user, id }) => {
-      setCursors((prev) => ({ ...prev, [id]: { position, user } }));
+      setCursors((prev) => {
+        if (prev[id]?.position?.lineNumber === position.lineNumber && 
+            prev[id]?.position?.column === position.column) return prev;
+        return { ...prev, [id]: { position, user } };
+      });
     });
 
     socket.on('receive-message', (data) => {
@@ -93,34 +107,31 @@ const useCollaboration = (projectId, selectedFileId, initialFiles = []) => {
 
     doc.on('update', (update, origin) => {
       if (origin !== 'remote') {
-        console.log('Sending local update:', projectId);
         socket.emit('sync-document', { projectId, update: Array.from(update) });
       }
     });
 
-    // Watch for deep changes in files map and file list array
-    ymap.observeDeep(() => refreshCode(ymap, selectedFileIdRef.current));
-    yFileList.observe(() => refreshFiles(yFileList));
+    const fileListObserver = () => refreshFiles(yFileList);
+    yFileList.observe(fileListObserver);
 
     return () => {
+      yFileList.unobserve(fileListObserver);
       socket.disconnect();
     };
-  }, [projectId, refreshCode, refreshFiles]);
+  }, [projectId, refreshFiles]);
 
-  // ----- Initialize or Switch File -----
+  // ----- Initialize or Switch File + Specific Content Observation -----
   useEffect(() => {
     const doc = ydoc.current;
     const ymap = doc.getMap('files');
     const yFileList = doc.getArray('fileList');
 
-    // If file doesn't exist in Yjs yet, seed it from initial config
     const currentFile = files.find(f => f.id === selectedFileId);
     if (currentFile && !ymap.get(selectedFileId)) {
       const text = new Y.Text();
       text.insert(0, currentFile.content || '');
       doc.transact(() => {
         ymap.set(selectedFileId, text);
-        // Also add to fileList if not present
         const exists = yFileList.toArray().some(f => String(f.id) === String(selectedFileId));
         if (!exists) {
           yFileList.push([sanitizeFile(currentFile)]);
@@ -130,7 +141,17 @@ const useCollaboration = (projectId, selectedFileId, initialFiles = []) => {
 
     const text = ymap.get(selectedFileId);
     setYtext(text);
-    if (text) setCode(text.toString());
+    
+    if (text) {
+      const updateLocalCode = () => {
+        const newContent = text.toString();
+        setCode(prev => (prev === newContent ? prev : newContent));
+      };
+      
+      updateLocalCode();
+      text.observe(updateLocalCode);
+      return () => text.unobserve(updateLocalCode);
+    }
   }, [selectedFileId, files]);
 
   // ----- Actions -----
@@ -143,6 +164,7 @@ const useCollaboration = (projectId, selectedFileId, initialFiles = []) => {
         text.delete(0, text.length);
         text.insert(0, newContent);
       });
+      // Code state is updated by the observer, but we set it here for immediate UI feedback
       setCode(newContent);
     }
   }, []);

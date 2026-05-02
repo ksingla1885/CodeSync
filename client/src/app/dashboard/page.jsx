@@ -31,12 +31,36 @@ import CustomSelect from '@/components/UI/custom-select'
 
 const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000';
 
+// Defensive stringification helper to prevent [object Object] errors
+const safeRender = (val, fallback = '') => {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number') return String(val);
+  if (typeof val === 'object') {
+    // Try common properties
+    const res = val.name || val.label || val.email || val.title || val.message;
+    if (res && typeof res === 'string') return res;
+    if (res && typeof res === 'number') return String(res);
+    
+    // Check if it has a custom toString (not the default one)
+    if (typeof val.toString === 'function' && val.toString() !== '[object Object]') {
+      return val.toString();
+    }
+    
+    // Final fallback: JSON stringify but catch circulars
+    try { return JSON.stringify(val); } catch (e) { return fallback || '[Complex Object]'; }
+  }
+  return String(val);
+};
+
 export default function Dashboard() {
   // Auth User
   const [user, setUser] = useState(null);
+  const [isMounted, setIsMounted] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
+    setIsMounted(true);
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
       setUser(JSON.parse(savedUser));
@@ -248,6 +272,7 @@ export default function Dashboard() {
   );
 
   const getGreeting = () => {
+    if (!isMounted) return 'Welcome';
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';
     if (hour < 18) return 'Good afternoon';
@@ -255,7 +280,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-[#fafafa] flex font-sans selection:bg-white/10">
+    <div className="min-h-screen bg-[#09090b] text-[#fafafa] flex font-sans selection:bg-white/10" suppressHydrationWarning>
       {/* Sidebar */}
       <aside className="w-64 border-r border-white/[0.06] flex flex-col p-6 bg-[#09090b] hidden lg:flex">
         <div className="flex items-center gap-3 px-2 mb-10">
@@ -275,17 +300,18 @@ export default function Dashboard() {
 
         <div className="mt-auto space-y-4 pt-6 border-t border-white/[0.06]">
           <div className="flex items-center gap-3 px-2">
-            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-xs font-medium uppercase">
-              {String(user?.name?.[0] || user?.email?.[0] || 'U')}
+            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-xs font-medium uppercase" suppressHydrationWarning>
+              {isMounted ? safeRender(user?.name?.[0] || user?.email?.[0] || 'U', 'U') : 'U'}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{String(user?.name || 'User')}</p>
-              <p className="text-xs text-white/40 truncate">{String(user?.email || '')}</p>
+              <p className="text-sm font-medium truncate">{isMounted ? safeRender(user?.name || 'User', 'User') : 'User'}</p>
+              <p className="text-xs text-white/40 truncate">{isMounted ? safeRender(user?.email || '', '') : ''}</p>
             </div>
           </div>
           <button
             onClick={() => { localStorage.removeItem('user'); router.push('/'); }}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/40 hover:text-white hover:bg-white/[0.04] rounded-lg transition-all"
+            suppressHydrationWarning
           >
             <LogOut size={16} />
             <span>Sign out</span>
@@ -312,11 +338,13 @@ export default function Dashboard() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="bg-white/[0.04] border border-white/[0.08] rounded-full pl-9 pr-4 py-1.5 text-xs w-48 focus:w-64 focus:outline-none focus:border-white/20 transition-all placeholder-white/20"
+                suppressHydrationWarning
               />
             </div>
             <button
               onClick={() => setIsNewProjectModalOpen(true)}
               className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-white text-black text-xs font-semibold hover:bg-white/90 transition-all active:scale-95"
+              suppressHydrationWarning
             >
               <Plus size={14} />
               Create
@@ -329,25 +357,25 @@ export default function Dashboard() {
           <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div>
               <h2 className="text-3xl font-bold tracking-tight mb-2">
-                {String(getGreeting())}, {String(user?.name?.split(' ')[0] || 'there')}
+                {getGreeting()}, {isMounted ? safeRender(user?.name?.split(' ')[0] || 'there', 'there') : 'there'}
               </h2>
               <p className="text-white/40 text-sm">
                 Here's what's happening in your workspace today.
               </p>
             </div>
             <div className="flex items-center gap-2 p-1 bg-white/[0.04] border border-white/[0.08] rounded-lg">
-              <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white/10 text-white' : 'text-white/20 hover:text-white'}`}><LayoutGrid size={16} /></button>
-              <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white/10 text-white' : 'text-white/20 hover:text-white'}`}><List size={16} /></button>
+              <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white/10 text-white' : 'text-white/20 hover:text-white'}`} suppressHydrationWarning><LayoutGrid size={16} /></button>
+              <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white/10 text-white' : 'text-white/20 hover:text-white'}`} suppressHydrationWarning><List size={16} /></button>
             </div>
           </div>
 
           {/* Quick Actions */}
           <div className="flex items-center gap-3 mb-12">
-            <button onClick={() => setIsNewFolderModalOpen(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] text-xs font-medium transition-all">
+            <button onClick={() => setIsNewFolderModalOpen(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] text-xs font-medium transition-all" suppressHydrationWarning>
               <FolderPlus size={14} />
               New Folder
             </button>
-            <button onClick={handleClearAll} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/[0.04] border border-red-500/10 hover:bg-red-500/[0.08] text-red-400/60 hover:text-red-400 text-xs font-medium transition-all">
+            <button onClick={handleClearAll} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/[0.04] border border-red-500/10 hover:bg-red-500/[0.08] text-red-400/60 hover:text-red-400 text-xs font-medium transition-all" suppressHydrationWarning>
               <Trash2 size={14} />
               Clear All
             </button>
@@ -380,6 +408,7 @@ export default function Dashboard() {
                 <button
                   onClick={() => setIsNewProjectModalOpen(true)}
                   className="mt-6 px-6 py-2 rounded-full bg-white text-black text-xs font-bold hover:bg-white/90 transition-all"
+                  suppressHydrationWarning
                 >
                   Create Project
                 </button>
@@ -390,7 +419,7 @@ export default function Dashboard() {
                   <div className="w-8 h-8 rounded-lg bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-white/40">
                     <Folder size={16} />
                   </div>
-                  <h3 className="text-lg font-semibold tracking-tight">{folder}</h3>
+                  <h3 className="text-lg font-semibold tracking-tight">{safeRender(folder)}</h3>
                   <span className="text-[10px] font-bold text-white/20 bg-white/[0.04] px-2 py-0.5 rounded-full border border-white/[0.06]">
                     {groupedProjects[folder].length}
                   </span>
@@ -457,6 +486,7 @@ function SidebarLink({ icon: Icon, label, active = false, onClick }) {
     <div
       onClick={onClick}
       className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-all cursor-pointer ${active ? 'bg-white/[0.06] text-white' : 'text-white/40 hover:text-white hover:bg-white/[0.03]'}`}
+      suppressHydrationWarning
     >
       <Icon size={18} />
       <span>{label}</span>
@@ -467,7 +497,7 @@ function SidebarLink({ icon: Icon, label, active = false, onClick }) {
 function DropdownItem({ icon, label, onClick, danger = false }) {
   return (
     <button
-      onClick={onClick}
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
       className={`w-full flex items-center gap-3 px-3 py-2 text-xs font-medium transition-all ${danger
         ? 'text-red-400/70 hover:text-red-400 hover:bg-red-500/[0.06]'
         : 'text-white/50 hover:text-white hover:bg-white/[0.04]'
@@ -496,6 +526,7 @@ function ProjectCard({ project, viewMode, onDelete, onMove, onAddCollab }) {
   const MenuDropdown = () => (
     <div
       ref={menuRef}
+      onClick={(e) => e.stopPropagation()}
       className="absolute top-full right-0 mt-1.5 w-44 bg-[#111113] border border-white/[0.08] rounded-xl shadow-2xl z-50 overflow-hidden py-1"
     >
       <DropdownItem icon={<ChevronRight size={14} />} label="Open" onClick={() => router.push(`/editor/${project._id}`)} />
@@ -517,8 +548,8 @@ function ProjectCard({ project, viewMode, onDelete, onMove, onAddCollab }) {
             <Users size={18} />
           </div>
           <div className="min-w-0">
-            <h4 className="font-semibold text-sm text-white truncate">{project.name}</h4>
-            <p className="text-[10px] text-white/30 flex items-center gap-1.5 mt-0.5">
+            <h4 className="font-semibold text-sm text-white truncate">{safeRender(project.name, 'Untitled Project')}</h4>
+            <p className="text-[10px] text-white/30 flex items-center gap-1.5 mt-0.5" suppressHydrationWarning>
               <Clock size={10} />
               Updated {new Date(project.updatedAt || project.createdAt).toLocaleDateString()}
             </p>
@@ -557,12 +588,12 @@ function ProjectCard({ project, viewMode, onDelete, onMove, onAddCollab }) {
         </div>
       </div>
 
-      <h4 className="font-semibold text-base mb-1 group-hover:text-white truncate">{project.name}</h4>
+      <h4 className="font-semibold text-base mb-1 group-hover:text-white truncate">{safeRender(project.name, 'Untitled Project')}</h4>
       <div className="flex items-center justify-between mt-6">
         <div className="flex -space-x-2">
           {Array.isArray(project.collaborators) && project.collaborators.slice(0, 3).map((c, i) => (
-            <div key={i} className="w-6 h-6 rounded-full border-2 border-[#09090b] bg-white/10 flex items-center justify-center text-[8px] font-bold uppercase" title={c.email}>
-              {c.name?.[0] || c.email?.[0]}
+            <div key={i} className="w-6 h-6 rounded-full border-2 border-[#09090b] bg-white/10 flex items-center justify-center text-[8px] font-bold uppercase" title={safeRender(c.email)}>
+              {safeRender(c.name?.[0] || c.email?.[0] || '?', '?')}
             </div>
           ))}
           {Array.isArray(project.collaborators) && project.collaborators.length > 3 && (
@@ -571,7 +602,7 @@ function ProjectCard({ project, viewMode, onDelete, onMove, onAddCollab }) {
             </div>
           )}
         </div>
-        <div className="text-[10px] text-white/20 font-medium">
+        <div className="text-[10px] text-white/20 font-medium" suppressHydrationWarning>
           {new Date(project.updatedAt || project.createdAt).toLocaleDateString()}
         </div>
       </div>
@@ -667,7 +698,7 @@ function Modals({
                 placeholder="Select project..."
               />
             </div>
-            <button type="submit" className="w-full py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-white/90 transition-all active:scale-95">Create Folder</button>
+            <button type="submit" className="w-full py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-white/90 transition-all active:scale-95" suppressHydrationWarning>Create Folder</button>
           </form>
         </ModalWrapper>
       )}
@@ -677,10 +708,10 @@ function Modals({
         <ModalWrapper onClose={() => setIsMoveModalOpen(false)} title="Move Project">
           <div className="space-y-6">
             <div className="space-y-2">
-              <p className="text-xs text-white/40 ml-1">Move <span className="text-white font-medium">{projectToMove?.name}</span> to:</p>
+              <p className="text-xs text-white/40 ml-1">Move <span className="text-white font-medium">{safeRender(projectToMove?.name)}</span> to:</p>
               <div className="grid grid-cols-2 gap-2">
                 {folders.map(f => (
-                  <button key={f} onClick={() => setTargetFolder(f)} className={`p-3 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all ${targetFolder === f ? 'bg-white text-black border-white' : 'bg-white/[0.04] border-white/[0.08] text-white/40 hover:bg-white/[0.08]'}`}>{f}</button>
+                  <button key={f} onClick={() => setTargetFolder(f)} className={`p-3 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all ${targetFolder === f ? 'bg-white text-black border-white' : 'bg-white/[0.04] border-white/[0.08] text-white/40 hover:bg-white/[0.08]'}`}>{safeRender(f)}</button>
                 ))}
               </div>
             </div>
@@ -693,7 +724,7 @@ function Modals({
                 className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-white/20 transition-all"
               />
             </div>
-            <button onClick={handleMoveProject} disabled={!targetFolder} className="w-full py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-white/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed">Confirm Move</button>
+            <button onClick={handleMoveProject} disabled={!targetFolder} className="w-full py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-white/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed" suppressHydrationWarning>Confirm Move</button>
           </div>
         </ModalWrapper>
       )}
@@ -704,7 +735,7 @@ function Modals({
           <div className="space-y-6">
             <div className="text-center p-4 bg-white/[0.02] border border-dashed border-white/[0.08] rounded-2xl">
               <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest mb-1">Project</p>
-              <p className="text-sm font-semibold text-white/70">{selectedProjectForCollab?.name}</p>
+              <p className="text-sm font-semibold text-white/70">{safeRender(selectedProjectForCollab?.name, 'Selected Project')}</p>
             </div>
 
             {collabStep === 1 ? (
@@ -713,7 +744,7 @@ function Modals({
                   <label className="text-[10px] font-bold uppercase tracking-widest text-white/30 ml-1">Email Address</label>
                   <input autoFocus type="email" placeholder="teammate@company.com" value={collabEmail} onChange={(e) => setCollabEmail(e.target.value)} className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-white/20 transition-all" />
                 </div>
-                <button onClick={handleRequestCollabCode} disabled={collabLoading || !collabEmail} className="w-full py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-white/90 transition-all active:scale-95 disabled:opacity-30">{collabLoading ? 'Requesting...' : 'Send Code'}</button>
+                <button onClick={handleRequestCollabCode} disabled={collabLoading || !collabEmail} className="w-full py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-white/90 transition-all active:scale-95 disabled:opacity-30" suppressHydrationWarning>{collabLoading ? 'Requesting...' : 'Send Code'}</button>
               </div>
             ) : (
               <div className="space-y-6 animate-in fade-in duration-500">
@@ -722,13 +753,13 @@ function Modals({
                   <input required type="text" maxLength={6} value={collabCode} onChange={(e) => setCollabCode(e.target.value)} placeholder="000000" className="w-full bg-transparent border-b-2 border-white/10 text-center text-3xl font-bold tracking-[0.4em] focus:outline-none focus:border-white/40 transition-all py-4" />
                 </div>
                 <div className="flex flex-col gap-3">
-                  <button onClick={handleAddCollaboratorAction} disabled={collabLoading || collabCode.length !== 6} className="w-full py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-white/90 transition-all">{collabLoading ? 'Adding...' : 'Verify & Add'}</button>
-                  <button onClick={() => setCollabStep(1)} className="text-[10px] font-bold text-white/20 uppercase tracking-widest hover:text-white transition-colors">Edit Email</button>
+                  <button onClick={handleAddCollaboratorAction} disabled={collabLoading || collabCode.length !== 6} className="w-full py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-white/90 transition-all" suppressHydrationWarning>{collabLoading ? 'Adding...' : 'Verify & Add'}</button>
+                  <button onClick={() => setCollabStep(1)} className="text-[10px] font-bold text-white/20 uppercase tracking-widest hover:text-white transition-colors" suppressHydrationWarning>Edit Email</button>
                 </div>
               </div>
             )}
             {collabStatus.message && (
-              <div className={`p-3 rounded-xl text-[10px] font-bold text-center uppercase tracking-widest border ${collabStatus.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : collabStatus.type === 'error' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-white/5 text-white/30 border-white/10'}`}>{String(collabStatus.message)}</div>
+              <div className={`p-3 rounded-xl text-[10px] font-bold text-center uppercase tracking-widest border ${collabStatus.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : collabStatus.type === 'error' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-white/5 text-white/30 border-white/10'}`}>{safeRender(collabStatus.message)}</div>
             )}
           </div>
         </ModalWrapper>
@@ -742,8 +773,8 @@ function Modals({
                 {user?.name?.[0] || user?.email?.[0]}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white truncate">{user?.name || 'User'}</p>
-                <p className="text-xs text-white/30 truncate">{user?.email}</p>
+                <p className="text-sm font-semibold text-white truncate">{safeRender(user?.name, 'User')}</p>
+                <p className="text-xs text-white/30 truncate">{safeRender(user?.email, '')}</p>
               </div>
             </div>
 

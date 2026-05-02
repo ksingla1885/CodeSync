@@ -36,7 +36,9 @@ export default function CustomSelect({ value, onChange, options = [], placeholde
         className={`w-full flex items-center justify-between bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-left hover:border-white/20 focus:outline-none transition-all ${className}`}
       >
         <span className={hasValue ? 'text-white' : 'text-white/30'}>
-          {String(hasValue ? selected.label : placeholder)}
+          {hasValue && selected?.label && typeof selected.label === 'object' 
+            ? selected.label.name || selected.label.label || JSON.stringify(selected.label)
+            : String(hasValue ? selected.label : placeholder)}
         </span>
         <ChevronRight
           size={14}
@@ -68,7 +70,7 @@ export default function CustomSelect({ value, onChange, options = [], placeholde
                     : 'text-white/50 hover:text-white hover:bg-white/[0.04]'
                 }`}
               >
-                {String(opt.label)}
+                {opt.label && typeof opt.label === 'object' ? opt.label.name || opt.label.label || JSON.stringify(opt.label) : String(opt.label || '')}
               </button>
             );
           })}

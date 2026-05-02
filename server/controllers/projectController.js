@@ -27,7 +27,6 @@ exports.getProjects = async (req, res) => {
     .sort({ createdAt: -1 })
     .populate('owner collaborators', 'name email');
 
-    console.log(`Fetching projects for user ${userId}:`, projects);
     res.json(projects);
   } catch (error) {
     res.status(500).json({ error: error.message });

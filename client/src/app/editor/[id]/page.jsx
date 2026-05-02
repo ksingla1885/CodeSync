@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import FileExplorer from '@/components/FileExplorer/FileExplorer';
 import CodeEditor from '@/components/Editor/LazyEditor';
@@ -32,6 +32,21 @@ import Link from 'next/link';
 const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000';
 
 const INITIAL_FILES = [{ id: '1', name: 'main.js', language: 'javascript', content: '// Happy coding!' }];
+
+// Defensive stringification helper to prevent [object Object] errors
+const safeRender = (val, fallback = '') => {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number') return String(val);
+  if (typeof val === 'object') {
+    const res = val.name || val.label || val.email || val.title || val.message;
+    if (res && typeof res === 'string') return res;
+    if (res && typeof res === 'number') return String(res);
+    if (typeof val.toString === 'function' && val.toString() !== '[object Object]') return val.toString();
+    try { return JSON.stringify(val); } catch (e) { return fallback || '[Complex Object]'; }
+  }
+  return String(val);
+};
 
 export default function EditorPage() {
   const params = useParams();
@@ -108,7 +123,8 @@ export default function EditorPage() {
     return files.find(f => f.id === selectedFileId) || files[0] || INITIAL_FILES[0];
   }, [files, selectedFileId]);
 
-  const handleRunCode = async () => {
+  const handleRunCode = useCallback(async () => {
+    if (isRunning) return;
     setIsRunning(true);
     setShowOutput(true);
     setOutput('');
@@ -125,7 +141,7 @@ export default function EditorPage() {
     } finally {
       setIsRunning(false);
     }
-  };
+  }, [isRunning, code, selectedFile.language]);
 
   const handleRequestCollabCode = async () => {
     if (!collabEmail) return;
@@ -230,7 +246,9 @@ export default function EditorPage() {
              <div className="flex items-center gap-1.5 text-xs">
                 <span className="text-white/40">Projects</span>
                 <ChevronRight size={12} className="text-white/20" />
-                <span className="font-medium">{String(project?.name || 'Loading...')}</span>
+                <span className="font-medium">{safeRender(project?.name, 'Loading...')}</span>
+                <span className="text-white/20 px-2">/</span>
+                <span className="text-white/40">{safeRender(project?.folder, 'Root')}</span>
              </div>
              {connected && (
                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-bold text-emerald-400 tracking-wider">
@@ -244,8 +262,8 @@ export default function EditorPage() {
         <div className="flex items-center gap-2">
           <div className="flex -space-x-1.5 mr-2">
              {project?.collaborators?.slice(0, 3).map((c, i) => (
-                <div key={i} className="w-6 h-6 rounded-full border-2 border-[#09090b] bg-white/10 flex items-center justify-center text-[8px] font-bold uppercase" title={c.email}>
-                   {c.name?.[0] || c.email?.[0]}
+                <div key={i} className="w-6 h-6 rounded-full border-2 border-[#09090b] bg-white/10 flex items-center justify-center text-[8px] font-bold uppercase" title={safeRender(c.email)}>
+                   {safeRender(c.name?.[0] || c.email?.[0] || '?', '?')}
                 </div>
              ))}
              {project?.collaborators?.length > 3 && (
@@ -536,10 +554,10 @@ function TeamMember({ user, role, onRemove, showRemove }) {
   return (
     <div className="flex items-center justify-between p-2 rounded-xl bg-white/[0.02] border border-white/[0.06]">
       <div className="flex items-center gap-3 min-w-0">
-        <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center text-xs font-bold uppercase">{String(user.name?.[0] || user.email?.[0] || 'U')}</div>
+        <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center text-xs font-bold uppercase">{safeRender(user.name?.[0] || user.email?.[0] || 'U', 'U')}</div>
         <div className="min-w-0">
-          <p className="text-xs font-semibold truncate">{String(user.name || 'User')}</p>
-          <p className="text-[10px] text-white/30 truncate">{String(user.email || '')}</p>
+          <p className="text-xs font-semibold truncate">{safeRender(user.name, 'User')}</p>
+          <p className="text-[10px] text-white/30 truncate">{safeRender(user.email, '')}</p>
         </div>
       </div>
       <div className="flex items-center gap-2 ml-4">

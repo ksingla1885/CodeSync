@@ -3,31 +3,43 @@ const Project = require('../models/Project');
 
 const setupYjs = (io) => {
   const documents = new Map();
+  const loadingPromises = new Map();
   const dirtyProjectIds = new Set();
 
   const getOrLoadDocument = async (projectId) => {
+    // 1. Check if already in memory
     if (documents.has(projectId)) return documents.get(projectId);
 
-    const doc = new Y.Doc();
-    documents.set(projectId, doc);
+    // 2. Check if currently loading to prevent race conditions
+    if (loadingPromises.has(projectId)) return loadingPromises.get(projectId);
 
-    try {
-      // Attempt to load from MongoDB
-      const project = await Project.findById(projectId);
-      if (project && project.docState) {
-        console.log(`[YJS] Loading persistent state for project ${projectId}`);
-        Y.applyUpdate(doc, project.docState);
+    const loadPromise = (async () => {
+      const doc = new Y.Doc();
+      try {
+        const project = await Project.findById(projectId).lean();
+        if (project && project.docState) {
+          // docState is a Buffer from MongoDB
+          Y.applyUpdate(doc, new Uint8Array(project.docState));
+        }
+      } catch (err) {
+        console.error(`[YJS] Error loading project ${projectId}:`, err);
       }
-    } catch (err) {
-      console.error(`[YJS] Error loading project ${projectId}:`, err);
-    }
-    return doc;
+      documents.set(projectId, doc);
+      loadingPromises.delete(projectId);
+      return doc;
+    })();
+
+    loadingPromises.set(projectId, loadPromise);
+    return loadPromise;
   };
 
   const savePersistentState = async () => {
     if (dirtyProjectIds.size === 0) return;
 
-    for (const projectId of dirtyProjectIds) {
+    const idsToSave = Array.from(dirtyProjectIds);
+    dirtyProjectIds.clear();
+
+    await Promise.all(idsToSave.map(async (projectId) => {
       try {
         const doc = documents.get(projectId);
         if (doc) {
@@ -35,40 +47,39 @@ const setupYjs = (io) => {
           await Project.findByIdAndUpdate(projectId, { 
              docState: Buffer.from(state) 
           });
-          console.log(`[YJS] Persisted state for project ${projectId}`);
         }
       } catch (err) {
         console.error(`[YJS] Error persisting project ${projectId}:`, err);
+        // Put back in dirty set if it failed? (Optional, depends on error type)
+        dirtyProjectIds.add(projectId);
       }
-    }
-    dirtyProjectIds.clear();
+    }));
   };
 
   // Run persistence every 10 seconds if changes occur
   setInterval(savePersistentState, 10000);
 
   io.on('connection', (socket) => {
-    // Sync React 'files' list with Yjs file metadata
     socket.on('sync-document', async ({ projectId, update }) => {
       if (!projectId) return;
       const doc = await getOrLoadDocument(projectId);
       
-      // Apply the update to the server-side document
       if (update) {
+        // Socket.io handles Buffer/Uint8Array efficiently
         Y.applyUpdate(doc, new Uint8Array(update));
         dirtyProjectIds.add(projectId);
+        
+        // Broadcast binary update to others
+        socket.to(projectId).emit('document-update', { projectId, update });
       }
-
-      // Broadcast changes to other clients in the same project room
-      socket.to(projectId).emit('document-update', { projectId, update });
     });
 
-    // Send the full document to a newly connected client
     socket.on('get-document', async (projectId) => {
       if (!projectId) return;
       const doc = await getOrLoadDocument(projectId);
       const state = Y.encodeStateAsUpdate(doc);
-      socket.emit('document-init', { projectId, state: Array.from(state) });
+      // Send as Buffer directly
+      socket.emit('document-init', { projectId, state: Buffer.from(state) });
     });
   });
 };

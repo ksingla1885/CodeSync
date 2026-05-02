@@ -1,6 +1,7 @@
 'use client';
 import React, { useRef, useEffect, useCallback } from 'react';
 import { Editor, useMonaco } from '@monaco-editor/react';
+import { MonacoBinding } from 'y-monaco';
 
 const CodeEditor = ({
   code,
@@ -8,21 +9,16 @@ const CodeEditor = ({
   language = 'javascript',
   cursors = {},
   onCursorChange,
-  // accepted but handled externally by the collaboration hook
-  ytext: _ytext,
-  connected: _connected,
+  ytext,
+  connected,
 }) => {
-  // Ensure code is ALWAYS a string. If it's a Yjs object/update, coerce to string.
-  const safeCode = (code && typeof code === 'string') 
-    ? code 
-    : (code && typeof code.toString === 'function' ? code.toString() : '');
-
   const monacoRef = useRef(null);
   const editorRef = useRef(null);
+  const bindingRef = useRef(null);
   const decorationsRef = useRef([]);
   const monaco = useMonaco();
 
-  // Register a custom near-black theme once Monaco loads
+  // Register custom theme
   useEffect(() => {
     if (!monaco) return;
     monaco.editor.defineTheme('codesync-dark', {
@@ -55,10 +51,39 @@ const CodeEditor = ({
     monaco.editor.setTheme('codesync-dark');
   }, [monaco]);
 
+  // Handle binding lifecycle
+  useEffect(() => {
+    if (editorRef.current && ytext && connected) {
+      // Clean up previous binding
+      if (bindingRef.current) {
+        bindingRef.current.destroy();
+      }
+
+      // Create new binding
+      const model = editorRef.current.getModel();
+      if (model) {
+        bindingRef.current = new MonacoBinding(
+          ytext,
+          model,
+          new Set([editorRef.current]),
+          null // awareness can be added here for built-in cursors
+        );
+      }
+    }
+
+    return () => {
+      if (bindingRef.current) {
+        bindingRef.current.destroy();
+        bindingRef.current = null;
+      }
+    };
+  }, [ytext, connected]);
+
   const handleEditorDidMount = useCallback((editor, monacoInstance) => {
     editorRef.current = editor;
     monacoRef.current = monacoInstance;
     monacoInstance.editor.setTheme('codesync-dark');
+    
     editor.onDidChangeCursorPosition((e) => {
       onCursorChange?.(e.position);
     });
@@ -70,7 +95,7 @@ const CodeEditor = ({
     const monacoInst = monacoRef.current;
     if (!editor || !monacoInst) return;
 
-    const newDecorations = Object.entries(cursors).map(([, data]) => ({
+    const newDecorations = Object.entries(cursors).map(([id, data]) => ({
       range: new monacoInst.Range(
         data.position.lineNumber,
         data.position.column,
@@ -78,10 +103,10 @@ const CodeEditor = ({
         data.position.column
       ),
       options: {
-        className: 'remote-cursor',
-        hoverMessage: { value: `**${typeof data.user.name === 'string' ? data.user.name : 'User'}**` },
+        className: `remote-cursor-${id}`,
+        hoverMessage: { value: `**${data.user?.name || 'User'}**` },
         after: {
-          content: ` ${typeof data.user.name === 'string' ? data.user.name : 'User'} `,
+          content: ` ${data.user?.name || 'User'} `,
           inlineClassName: 'remote-cursor-label',
         },
       },
@@ -99,8 +124,9 @@ const CodeEditor = ({
         height="100%"
         width="100%"
         language={language}
-        value={safeCode}
-        onChange={onChange}
+        // If bound, Monaco handles value. If not, use the code prop as fallback.
+        value={ytext ? undefined : code}
+        onChange={ytext ? undefined : onChange}
         onMount={handleEditorDidMount}
         theme="codesync-dark"
         options={{
@@ -132,6 +158,25 @@ const CodeEditor = ({
           },
         }}
       />
+      <style jsx global>{`
+        .remote-cursor-label {
+          position: absolute;
+          top: -16px;
+          padding: 1px 4px;
+          font-size: 9px;
+          font-weight: 700;
+          color: white;
+          background: #3b82f6;
+          border-radius: 2px;
+          white-space: nowrap;
+          pointer-events: none;
+          z-index: 10;
+        }
+        .remote-cursor {
+          width: 2px !important;
+          background: #3b82f6;
+        }
+      `}</style>
     </div>
   );
 };

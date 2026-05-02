@@ -29,7 +29,6 @@ exports.requestCode = async (req, res) => {
     await user.save();
 
     await email.sendVerificationEmail(addr, code, type, { projectName, ownerName });
-    console.log(`[AUTH] OTP sent to ${addr}`);
     res.json({ message: 'Verification code sent' });
   } catch (err) {
     console.error('[AUTH] requestCode error:', err.message);
@@ -91,7 +90,6 @@ exports.register = async (req, res) => {
     user.verificationCodeExpires = undefined;
     await user.save();
 
-    console.log(`[AUTH] New account created for ${addr}`);
     res.status(201).json({ message: 'Account created', user: safeUser(user) });
   } catch (err) {
     console.error('[AUTH] register error:', err.message);

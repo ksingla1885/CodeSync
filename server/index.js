@@ -37,18 +37,15 @@ const connectDB = async () => {
         throw new Error('MONGODB_URI is not defined!');
     }
     try {
-        console.log('[DB] Connecting...');
         await mongoose.connect(uri, {
             serverSelectionTimeoutMS: 10000,
         });
         isConnected = true;
-        console.log('[DB] Connected successfully');
         
         // Auto-seed if empty
         const User = require('./models/User');
         const count = await User.countDocuments();
         if (count === 0) {
-            console.log('[DB] Database empty, seeding...');
             const seed = require('./seed');
             await seed();
         }
@@ -92,9 +89,15 @@ if (process.env.VERCEL !== '1') {
     const server = http.createServer(app);
     const io = new Server(server, {
         cors: {
-            origin: process.env.CLIENT_URL || '*',
+            origin: allowedOrigins,
             methods: ['GET', 'POST'],
+            credentials: true
         },
+        pingTimeout: 60000,
+        pingInterval: 25000,
+        connectTimeout: 60000,
+        maxHttpBufferSize: 1e8, // 100MB
+        transports: ['websocket', 'polling']
     });
 
     const { setupYjs } = require('./websocket/yjs-provider');
@@ -129,7 +132,6 @@ if (process.env.VERCEL !== '1') {
                 if (parts.length >= 5) {
                     const pid = parts[parts.length - 1];
                     if (pid !== '0' && pid !== String(process.pid) && !isNaN(pid)) {
-                        console.log(`[CLEANUP] Killing ghost process ${pid} on port ${PORT}...`);
                         try { execSync(`taskkill /F /PID ${pid}`); } catch (e) {}
                     }
                 }

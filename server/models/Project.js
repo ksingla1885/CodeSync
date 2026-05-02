@@ -8,5 +8,7 @@ const projectSchema = new mongoose.Schema({
   docState: { type: Buffer },
   createdAt: { type: Date, default: Date.now },
 });
+projectSchema.index({ owner: 1 });
+projectSchema.index({ collaborators: 1 });
 
 module.exports = mongoose.model('Project', projectSchema);

@@ -10,27 +10,35 @@ const app = express();
 // CORS Configuration
 const allowedOrigins = [
     process.env.CLIENT_URL,
+    process.env.NEXT_PUBLIC_CLIENT_URL,
     process.env.NEXT_PUBLIC_SERVER_URL,
+    'https://code-sync-chi-gold.vercel.app',
     'http://localhost:3000',
-    'http://localhost:5173', // Vite default
+    'http://localhost:5173',
     'http://localhost:5000'
-].filter(Boolean);
+].filter(Boolean).map(url => url.replace(/\/$/, ''));
 
 app.use(cors({
     origin: (origin, callback) => {
-        // allow requests with no origin (like mobile apps or curl requests)
+        // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
         
-        const isAllowed = allowedOrigins.includes(origin) || process.env.CLIENT_URL === '*';
+        const normalizedOrigin = origin.replace(/\/$/, '');
+        const isAllowed = allowedOrigins.includes(normalizedOrigin) || 
+                         process.env.CLIENT_URL === '*' ||
+                         normalizedOrigin.endsWith('.vercel.app'); // Allow all Vercel deployments
         
         if (!isAllowed) {
-            console.error(`🛑 CORS blocked for origin: ${origin}`);
-            return callback(new Error('CORS Policy: This origin is not allowed'), false);
+            console.warn(`⚠️ CORS blocked for origin: ${origin}`);
+            return callback(null, false);
         }
         return callback(null, true);
     },
-    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
-    credentials: true
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+    preflightContinue: false,
+    optionsSuccessStatus: 204
 }));
 app.use(express.json());
 

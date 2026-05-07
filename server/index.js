@@ -51,9 +51,18 @@ const connectDB = async () => {
 // Start connection immediately
 connectDB().catch(err => console.error('[DB] Initial connection failed:', err));
 
-// Middleware to check connection
-app.use((req, res, next) => {
-    if (!isConnected && req.path !== '/health') {
+// Basic routes
+app.get('/', (req, res) => {
+  res.send('<h1>🚀 CodeSync API is live!</h1><p>The collaboration server is running. Access the frontend to start coding.</p>');
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', message: 'CodeSync API is running', dbConnected: isConnected });
+});
+
+// Middleware to check connection (only for API routes)
+app.use('/api', (req, res, next) => {
+    if (!isConnected) {
         return res.status(503).json({ status: 'ERROR', message: 'Database connecting, please try again in a moment.' });
     }
     next();
@@ -63,19 +72,20 @@ const projectRoutes = require('./routes/projectRoutes');
 const authRoutes = require('./routes/authRoutes');
 const { executeCode } = require('./controllers/executionController');
 
-// Basic routes
-app.get('/', (req, res) => {
-  res.send('<h1>🚀 CodeSync API is live!</h1><p>The collaboration server is running. Access the frontend to start coding.</p>');
-});
-
-app.get('/health', (req, res) => {
-  res.json({ status: 'OK', message: 'CodeSync API is running' });
-});
-
 // API Routes
 app.use('/api/projects', projectRoutes);
 app.use('/api/auth', authRoutes);
 app.post('/api/execute', executeCode);
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+    console.error('💥 Unhandled Error:', err.stack);
+    res.status(500).json({ 
+        status: 'ERROR', 
+        message: 'Internal Server Error',
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined 
+    });
+});
 
 // Environment-specific setup (Socket.io/Yjs only for persistent servers)
 if (process.env.VERCEL !== '1') {

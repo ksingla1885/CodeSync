@@ -9,22 +9,22 @@ const mongoose = require('mongoose');
 const app = express();
 // CORS Configuration
 const allowedOrigins = [
-  process.env.CLIENT_URL,
-  'http://localhost:3000',
-  'http://localhost:5173', // Vite default
-  'http://localhost:5000'
+    process.env.NEXT_PUBLIC_SERVER_URL,
+    'http://localhost:3000',
+    'http://localhost:5173', // Vite default
+    'http://localhost:5000'
 ].filter(Boolean);
 
 app.use(cors({
-  origin: (origin, callback) => {
-    // allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) === -1 && process.env.CLIENT_URL !== '*') {
-      return callback(new Error('CORS Policy: This origin is not allowed'), false);
-    }
-    return callback(null, true);
-  },
-  methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+    origin: (origin, callback) => {
+        // allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) === -1 && process.env.CLIENT_URL !== '*') {
+            return callback(new Error('CORS Policy: This origin is not allowed'), false);
+        }
+        return callback(null, true);
+    },
+    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
 }));
 app.use(express.json());
 
@@ -53,11 +53,11 @@ connectDB().catch(err => console.error('[DB] Initial connection failed:', err));
 
 // Basic routes
 app.get('/', (req, res) => {
-  res.send('<h1>🚀 CodeSync API is live!</h1><p>The collaboration server is running. Access the frontend to start coding.</p>');
+    res.send('<h1>🚀 CodeSync API is live!</h1><p>The collaboration server is running. Access the frontend to start coding.</p>');
 });
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', message: 'CodeSync API is running', dbConnected: isConnected });
+    res.json({ status: 'OK', message: 'CodeSync API is running', dbConnected: isConnected });
 });
 
 // Middleware to check connection (only for API routes)
@@ -80,10 +80,10 @@ app.post('/api/execute', executeCode);
 // Global Error Handler
 app.use((err, req, res, next) => {
     console.error('💥 Unhandled Error:', err.stack);
-    res.status(500).json({ 
-        status: 'ERROR', 
+    res.status(500).json({
+        status: 'ERROR',
         message: 'Internal Server Error',
-        error: process.env.NODE_ENV === 'development' ? err.message : undefined 
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
 });
 
@@ -123,7 +123,7 @@ if (process.env.VERCEL !== '1') {
     });
 
     const PORT = process.env.PORT || 5000;
-    
+
     // Self-healing port cleanup (Windows only)
     if (process.platform === 'win32') {
         try {
@@ -135,11 +135,11 @@ if (process.env.VERCEL !== '1') {
                 if (parts.length >= 5) {
                     const pid = parts[parts.length - 1];
                     if (pid !== '0' && pid !== String(process.pid) && !isNaN(pid)) {
-                        try { execSync(`taskkill /F /PID ${pid}`); } catch (e) {}
+                        try { execSync(`taskkill /F /PID ${pid}`); } catch (e) { }
                     }
                 }
             });
-        } catch (e) {}
+        } catch (e) { }
     }
 
     server.on('error', (e) => {

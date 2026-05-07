@@ -125,7 +125,7 @@ function SignInPanel() {
       });
       const data = await res.json();
       if (res.ok) persist(data.user);
-      else setAlert({ type: 'error', msg: data.error || 'Login failed.' });
+      else setAlert({ type: 'error', msg: data.error || data.message || 'Login failed.' });
     } catch { setAlert({ type: 'error', msg: 'Cannot reach server.' }); }
     finally { setLoading(false); }
   };
@@ -140,7 +140,7 @@ function SignInPanel() {
       });
       const data = await res.json();
       if (res.ok) { setOtpStep(2); setAlert({ type: 'success', msg: 'Code sent! Check your inbox.' }); }
-      else setAlert({ type: 'error', msg: data.error || 'Failed to send code.' });
+      else setAlert({ type: 'error', msg: data.error || data.message || 'Failed to send code.' });
     } catch { setAlert({ type: 'error', msg: 'Cannot reach server.' }); }
     finally { setLoading(false); }
   };
@@ -155,7 +155,7 @@ function SignInPanel() {
       });
       const data = await res.json();
       if (res.ok) persist(data.user);
-      else setAlert({ type: 'error', msg: data.error || 'Invalid code.' });
+      else setAlert({ type: 'error', msg: data.error || data.message || 'Invalid code.' });
     } catch { setAlert({ type: 'error', msg: 'Connection error.' }); }
     finally { setLoading(false); }
   };
@@ -253,7 +253,7 @@ function SignUpPanel() {
       });
       const data = await res.json();
       if (res.ok) { setStep(2); setAlert({ type: 'success', msg: 'Verification code sent to your inbox.' }); }
-      else setAlert({ type: 'error', msg: data.error || 'Failed to send code.' });
+      else setAlert({ type: 'error', msg: data.error || data.message || 'Failed to send code.' });
     } catch { setAlert({ type: 'error', msg: 'Cannot reach server.' }); }
     finally { setLoading(false); }
   };
@@ -268,7 +268,7 @@ function SignUpPanel() {
       });
       const data = await res.json();
       if (res.ok) persist(data.user);
-      else setAlert({ type: 'error', msg: data.error || 'Registration failed.' });
+      else setAlert({ type: 'error', msg: data.error || data.message || 'Registration failed.' });
     } catch { setAlert({ type: 'error', msg: 'Connection error.' }); }
     finally { setLoading(false); }
   };

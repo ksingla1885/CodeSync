@@ -44,22 +44,31 @@ app.use(express.json());
 
 // DB Connection
 let isConnected = false;
+let dbPromise = null;
+
 const connectDB = async () => {
     if (isConnected) return;
+    if (dbPromise) return dbPromise;
+
     const uri = process.env.MONGODB_URI;
     if (!uri) {
         console.error('❌ MONGODB_URI is not defined! Please add it to your environment variables.');
         return;
     }
-    try {
-        await mongoose.connect(uri, {
-            serverSelectionTimeoutMS: 5000,
-        });
+
+    dbPromise = mongoose.connect(uri, {
+        serverSelectionTimeoutMS: 5000,
+    }).then(() => {
         isConnected = true;
         console.log('✅ Connected to MongoDB');
-    } catch (err) {
+        dbPromise = null; // Clear promise once connected
+    }).catch(err => {
         console.error('[DB] CRITICAL ERROR:', err.message);
-    }
+        dbPromise = null; // Clear promise on failure so we can retry
+        throw err;
+    });
+
+    return dbPromise;
 };
 
 // Start connection immediately
@@ -74,12 +83,21 @@ app.get('/health', (req, res) => {
     res.json({ status: 'OK', message: 'CodeSync API is running', dbConnected: isConnected });
 });
 
-// Middleware to check connection (only for API routes)
-app.use('/api', (req, res, next) => {
-    if (!isConnected) {
-        return res.status(503).json({ status: 'ERROR', message: 'Database connecting, please try again in a moment.' });
+// Middleware to check/ensure connection (only for API routes)
+app.use('/api', async (req, res, next) => {
+    try {
+        await connectDB();
+        if (!isConnected) {
+            return res.status(503).json({ 
+                status: 'ERROR', 
+                message: 'Database is currently unavailable. Please try again in a moment.' 
+            });
+        }
+        next();
+    } catch (err) {
+        console.error('[MIDDLEWARE] DB Check failed:', err.message);
+        res.status(503).json({ status: 'ERROR', message: 'Service Temporarily Unavailable' });
     }
-    next();
 });
 
 const projectRoutes = require('./routes/projectRoutes');

@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import * as Y from 'yjs';
 import { io } from 'socket.io-client';
 
-const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000';
+const SERVER_URL = (process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000').replace(/\/$/, '');
 
 const docCache = {};
 const getOrCreateDoc = (projectId) => {

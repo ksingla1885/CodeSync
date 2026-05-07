@@ -9,6 +9,7 @@ const mongoose = require('mongoose');
 const app = express();
 // CORS Configuration
 const allowedOrigins = [
+    process.env.CLIENT_URL,
     process.env.NEXT_PUBLIC_SERVER_URL,
     'http://localhost:3000',
     'http://localhost:5173', // Vite default
@@ -19,12 +20,17 @@ app.use(cors({
     origin: (origin, callback) => {
         // allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) === -1 && process.env.CLIENT_URL !== '*') {
+        
+        const isAllowed = allowedOrigins.includes(origin) || process.env.CLIENT_URL === '*';
+        
+        if (!isAllowed) {
+            console.error(`🛑 CORS blocked for origin: ${origin}`);
             return callback(new Error('CORS Policy: This origin is not allowed'), false);
         }
         return callback(null, true);
     },
     methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+    credentials: true
 }));
 app.use(express.json());
 

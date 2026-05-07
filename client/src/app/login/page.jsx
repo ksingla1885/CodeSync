@@ -7,7 +7,7 @@ import {
   ArrowRight, Loader2, AlertCircle, CheckCircle2,
 } from 'lucide-react';
 
-const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000';
+const SERVER_URL = (process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000').replace(/\/$/, '');
 
 // ─── Shared atoms ─────────────────────────────────────────────────────────────
 function Label({ htmlFor, children }) {

@@ -29,7 +29,7 @@ import {
 import ConfirmationModal from '@/components/ConfirmationModal';
 import CustomSelect from '@/components/UI/custom-select'
 
-const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000';
+const SERVER_URL = (process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000').replace(/\/$/, '');
 
 // Defensive stringification helper to prevent [object Object] errors
 const safeRender = (val, fallback = '') => {
@@ -633,7 +633,7 @@ function Modals({
   selectedProjectForCollab,
   user
 }) {
-  const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000';
+  const SERVER_URL = (process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000').replace(/\/$/, '');
 
   return (
     <>

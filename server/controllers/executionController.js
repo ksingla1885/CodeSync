@@ -2,7 +2,7 @@ const { exec } = require('child_process');
 const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 
 const folderPath = path.join(os.tmpdir(), 'codesync-scripts');
 
@@ -23,7 +23,7 @@ const executeCode = async (req, res) => {
   }
 
   await ensureDir();
-  const id = uuidv4();
+  const id = crypto.randomUUID();
   
   const normalizedLang = (language || '').toLowerCase().trim();
   const isJS = normalizedLang === 'javascript' || normalizedLang === 'js';

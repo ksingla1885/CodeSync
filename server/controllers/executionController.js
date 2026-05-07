@@ -1,9 +1,10 @@
 const { exec } = require('child_process');
 const fs = require('fs').promises;
 const path = require('path');
+const os = require('os');
 const { v4: uuidv4 } = require('uuid');
 
-const folderPath = path.join(__dirname, '..', 'docker', 'temp-scripts');
+const folderPath = path.join(os.tmpdir(), 'codesync-scripts');
 
 // Ensure directory exists once at startup or when needed
 const ensureDir = async () => {

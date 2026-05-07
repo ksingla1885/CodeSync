@@ -34,29 +34,22 @@ const connectDB = async () => {
     if (isConnected) return;
     const uri = process.env.MONGODB_URI;
     if (!uri) {
-        throw new Error('MONGODB_URI is not defined!');
+        console.error('❌ MONGODB_URI is not defined! Please add it to your environment variables.');
+        return;
     }
     try {
         await mongoose.connect(uri, {
-            serverSelectionTimeoutMS: 10000,
+            serverSelectionTimeoutMS: 5000,
         });
         isConnected = true;
-        
-        // Auto-seed if empty
-        const User = require('./models/User');
-        const count = await User.countDocuments();
-        if (count === 0) {
-            const seed = require('./seed');
-            await seed();
-        }
+        console.log('✅ Connected to MongoDB');
     } catch (err) {
         console.error('[DB] CRITICAL ERROR:', err.message);
-        // Don't exit process in dev, just log
     }
 };
 
 // Start connection immediately
-connectDB();
+connectDB().catch(err => console.error('[DB] Initial connection failed:', err));
 
 // Middleware to check connection
 app.use((req, res, next) => {
